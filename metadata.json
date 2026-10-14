@@ -1,0 +1,6 @@
+{
+  "name": "APPLE INVEST",
+  "description": "Plataforma APPLE INVEST de investimento em tecnologia em meticais, com painel de administração completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
