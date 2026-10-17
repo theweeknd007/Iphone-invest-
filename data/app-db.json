@@ -1,0 +1,330 @@
+{
+  "users": [
+    {
+      "id": "test-user-01",
+      "phone": "841234567",
+      "name": "Investidor Teste 1",
+      "role": "user",
+      "balance": 1500,
+      "totalRecharged": 1500,
+      "totalWithdrawn": 300,
+      "accumulatedYield": 0,
+      "inviteCode": "TEST01",
+      "status": "ativo",
+      "checkInDays": [],
+      "createdAt": "2026-10-17T14:25:57.776Z"
+    }
+  ],
+  "purchases": [],
+  "transactions": [
+    {
+      "id": "tx-adj-1792247157781-ccccdf",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "type": "ajuste",
+      "amount": 300,
+      "method": "Ajuste Administrativo (Correção de bónus especial de campanha)",
+      "status": "concluido",
+      "createdAt": "2026-10-17T14:25:57.781Z"
+    },
+    {
+      "id": "tx-wth-1792247157780-93a61e",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "type": "levantamento",
+      "amount": 500,
+      "method": "M-Pesa (841234567)",
+      "status": "falhado",
+      "createdAt": "2026-10-17T14:25:57.780Z",
+      "note": "Titular do número não coincide com o registo"
+    },
+    {
+      "id": "tx-rec-1792247157778-2ae334",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "type": "recarga",
+      "amount": 1000,
+      "method": "M-Pesa (841234567)",
+      "reference": "REF-TEST-999",
+      "status": "concluido",
+      "createdAt": "2026-10-17T14:25:57.778Z"
+    },
+    {
+      "id": "tx-wth-1792247157777-c0fadc",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "type": "levantamento",
+      "amount": 300,
+      "method": "M-Pesa (841234567)",
+      "status": "pendente",
+      "createdAt": "2026-10-17T14:25:57.777Z"
+    },
+    {
+      "id": "tx-init-500",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "type": "recarga",
+      "amount": 500,
+      "method": "M-Pesa (Inicial)",
+      "status": "concluido",
+      "createdAt": "2026-10-17T14:25:57.776Z"
+    }
+  ],
+  "plans": [
+    {
+      "id": "iphone-x",
+      "name": "iPhone X",
+      "model": "64GB / 256GB • Super Retina OLED",
+      "price": 400,
+      "dailyYield": 20,
+      "days": 6,
+      "tone": "from-slate-400/20 to-slate-200/5",
+      "image": "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A11 Bionic",
+      "specs": "Ecrã 5.8\" • Face ID • Câmera Dupla 12MP"
+    },
+    {
+      "id": "iphone-11",
+      "name": "iPhone 11",
+      "model": "128GB • Liquid Retina HD",
+      "price": 800,
+      "dailyYield": 40,
+      "days": 6,
+      "tone": "from-purple-400/20 to-purple-200/5",
+      "image": "https://images.unsplash.com/photo-1574755393849-623942496936?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A13 Bionic",
+      "specs": "Ecrã 6.1\" • Modo Noite • Ultra Grande-Angular"
+    },
+    {
+      "id": "iphone-12",
+      "name": "iPhone 12",
+      "model": "128GB • Super Retina XDR 5G",
+      "price": 2000,
+      "dailyYield": 100,
+      "days": 6,
+      "tone": "from-blue-400/20 to-blue-200/5",
+      "image": "https://images.unsplash.com/photo-1605236453806-6ff36851218e?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A14 Bionic",
+      "specs": "Ceramic Shield • MagSafe • Gravação Dolby Vision"
+    },
+    {
+      "id": "iphone-13",
+      "name": "iPhone 13",
+      "model": "256GB • Modo Cinema HDR",
+      "price": 5000,
+      "dailyYield": 250,
+      "days": 6,
+      "tone": "from-pink-400/20 to-pink-200/5",
+      "image": "https://images.unsplash.com/photo-1632661674596-df8be070a5c5?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A15 Bionic",
+      "specs": "Ecrã Super Retina 6.1\" • Estabilização Sensor-Shift"
+    },
+    {
+      "id": "iphone-14",
+      "name": "iPhone 14",
+      "model": "256GB • Dynamic Island Pro",
+      "price": 10000,
+      "dailyYield": 500,
+      "days": 7,
+      "tone": "from-indigo-400/20 to-indigo-200/5",
+      "image": "https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A16 Bionic",
+      "specs": "Câmera Principal 48MP • Detecção de Acidentes"
+    },
+    {
+      "id": "iphone-15",
+      "name": "iPhone 15",
+      "model": "512GB • Estrutura em Titânio Aeroespacial",
+      "price": 25000,
+      "dailyYield": 1250,
+      "days": 7,
+      "tone": "from-amber-400/20 to-amber-200/5",
+      "image": "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A17 Pro (3nm)",
+      "specs": "USB-C 10Gbps • Botão de Ação • Zoom Óptico 5x"
+    },
+    {
+      "id": "iphone-16",
+      "name": "iPhone 16",
+      "model": "1TB • Apple Intelligence Ready",
+      "price": 50000,
+      "dailyYield": 2500,
+      "days": 7,
+      "tone": "from-teal-400/20 to-teal-200/5",
+      "image": "https://images.unsplash.com/photo-1726056651478-f7396603d7df?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A18 Pro",
+      "specs": "Controlo de Câmera Tátil • IA Generativa Nativa"
+    },
+    {
+      "id": "iphone-17",
+      "name": "iPhone 17",
+      "model": "1TB • Slim Quantum Titan Pro",
+      "price": 100000,
+      "dailyYield": 5000,
+      "days": 7,
+      "tone": "from-emerald-400/20 to-emerald-200/5",
+      "image": "https://images.unsplash.com/photo-1616348436168-de43ad0db179?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "A19 Bionic (2nm)",
+      "specs": "Ecrã Anti-reflexo 3000 nits • Face ID Sob Ecrã"
+    },
+    {
+      "id": "iphone-18",
+      "name": "iPhone 18",
+      "model": "2TB • Holographic Ultra Titanium",
+      "price": 200000,
+      "dailyYield": 10000,
+      "days": 7,
+      "tone": "from-violet-500/20 to-violet-300/5",
+      "image": "https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&auto=format&fit=crop&q=80",
+      "badge": "5% Diário",
+      "chip": "Quantum A20 Neuro",
+      "specs": "Bateria de Grafeno 72h • Projeção Holográfica 8K"
+    }
+  ],
+  "vouchers": [
+    {
+      "id": "voucher-apple2026",
+      "code": "APPLE2026",
+      "amount": 50,
+      "maxUses": 100,
+      "usedCount": 0,
+      "createdAt": "2026-10-17T14:24:41.154Z",
+      "status": "ativo"
+    }
+  ],
+  "adjustmentLogs": [
+    {
+      "id": "adj-man-1792247157781-123499",
+      "targetUserId": "test-user-01",
+      "targetUserPhone": "841234567",
+      "previousBalance": 1200,
+      "newBalance": 1500,
+      "amount": 300,
+      "type": "credito",
+      "reason": "Correção de bónus especial de campanha",
+      "adminId": "admin-001",
+      "adminName": "Admin Master",
+      "createdAt": "2026-10-17T14:25:57.781Z"
+    },
+    {
+      "id": "adj-ref-1792247157781-a11f5a",
+      "targetUserId": "test-user-01",
+      "targetUserPhone": "841234567",
+      "previousBalance": 700,
+      "newBalance": 1200,
+      "amount": 500,
+      "type": "credito",
+      "reason": "Reembolso por levantamento rejeitado: Titular do número não coincide com o registo",
+      "adminId": "admin-001",
+      "adminName": "Admin Master",
+      "createdAt": "2026-10-17T14:25:57.781Z"
+    },
+    {
+      "id": "adj-1792247157779-78c814",
+      "targetUserId": "test-user-01",
+      "targetUserPhone": "841234567",
+      "previousBalance": 200,
+      "newBalance": 1200,
+      "amount": 1000,
+      "type": "aprovacao_recarga",
+      "reason": "Aprovação de recarga de MT 1000 (M-Pesa (841234567))",
+      "adminId": "admin-001",
+      "adminName": "Admin Master",
+      "createdAt": "2026-10-17T14:25:57.779Z"
+    }
+  ],
+  "securityLogs": [
+    {
+      "id": "sec-1792247157778-0bd1e5cc",
+      "timestamp": "2026-10-17T14:25:57.778Z",
+      "eventType": "WITHDRAWAL_APPROVED",
+      "severity": "INFO",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "details": "Levantamento #tx-wth-1792247157777-c0fadc de MT 300 solicitado via M-Pesa. Saldo debitado de MT 500 para MT 200."
+    },
+    {
+      "id": "sec-1792247157779-3d9b5a24",
+      "timestamp": "2026-10-17T14:25:57.779Z",
+      "eventType": "RECHARGE_APPROVED",
+      "severity": "INFO",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "details": "Pedido de recarga de MT 1000 criado via M-Pesa. Aguarda confirmação do administrador."
+    },
+    {
+      "id": "sec-1792247157779-28413bbb",
+      "timestamp": "2026-10-17T14:25:57.779Z",
+      "eventType": "RECHARGE_APPROVED",
+      "severity": "INFO",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "operatorId": "admin-001",
+      "details": "Recarga #tx-rec-1792247157778-2ae334 de MT 1000 aprovada pelo admin Admin Master. Saldo atualizado de MT 200 para MT 1200."
+    },
+    {
+      "id": "sec-1792247157780-1be3f5b0",
+      "timestamp": "2026-10-17T14:25:57.780Z",
+      "eventType": "WITHDRAWAL_APPROVED",
+      "severity": "INFO",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "details": "Levantamento #tx-wth-1792247157780-93a61e de MT 500 solicitado via M-Pesa. Saldo debitado de MT 1200 para MT 700."
+    },
+    {
+      "id": "sec-1792247157781-d5f3f5fd",
+      "timestamp": "2026-10-17T14:25:57.781Z",
+      "eventType": "WITHDRAWAL_REJECTED",
+      "severity": "WARNING",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "operatorId": "admin-001",
+      "details": "Levantamento #tx-wth-1792247157780-93a61e de MT 500 rejeitado pelo admin Admin Master. Fundos reembolsados ao utilizador. Motivo: Titular do número não coincide com o registo"
+    },
+    {
+      "id": "sec-1792247157781-81733368",
+      "timestamp": "2026-10-17T14:25:57.781Z",
+      "eventType": "BALANCE_ADJUSTED",
+      "severity": "WARNING",
+      "userId": "test-user-01",
+      "userPhone": "841234567",
+      "operatorId": "admin-001",
+      "details": "Saldo do utilizador 841234567 ajustado de MT 1200 para MT 1500 por Admin Master. Motivo: Correção de bónus especial de campanha"
+    }
+  ],
+  "settings": {
+    "platformName": "APPLE INVEST",
+    "minWithdrawal": 100,
+    "minRecharge": 100,
+    "withdrawalFeePercent": 20,
+    "checkInBonus": 5,
+    "level1Commission": 29,
+    "level2Commission": 2,
+    "level3Commission": 1,
+    "supportWhatsapp": "+258 84 000 0000",
+    "whatsappGroupUrl": "https://chat.whatsapp.com/CqtV80fMgy8Eqx7iWFjaYW?s=cl&p=a&mlu=4&ilr=4",
+    "supportTelegram": "@appleinvest_oficial",
+    "officialAnnouncement": "📢 Comunicado Oficial: Rendimentos fixos de 5% ao dia. Levantamentos processados via M-Pesa e e-Mola com taxa de 20%. Participe no grupo VIP de WhatsApp!",
+    "broadcastAlert": {
+      "active": true,
+      "message": "Sistema atualizado! Rendimentos de 5% ao dia garantidos. Apoio oficial 24h via WhatsApp.",
+      "type": "info",
+      "title": "Aviso da Administração"
+    },
+    "mpesaOfficialNumber": "84 900 1234",
+    "mpesaOfficialName": "APPLE INVEST MOZ",
+    "emolaOfficialNumber": "86 900 1234",
+    "emolaOfficialName": "APPLE INVEST MOZ",
+    "withdrawalsEnabled": true,
+    "rechargesEnabled": true
+  },
+  "sessions": []
+}

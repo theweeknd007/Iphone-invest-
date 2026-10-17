@@ -78,6 +78,8 @@ export const AdminView: React.FC = () => {
     approveAllPendingWithdrawals,
     rejectWithdrawal,
     approveRecharge,
+    rejectRecharge,
+    adjustmentLogs,
     deleteTransaction,
     updatePlan,
     addPlan,
@@ -134,15 +136,24 @@ export const AdminView: React.FC = () => {
   // Filter for withdrawals
   const [withdrawFilter, setWithdrawFilter] = useState<'all' | 'pendente' | 'concluido' | 'falhado'>('all');
 
-  // Rejection modal state
+  // Filter for recharges
+  const [rechargeFilter, setRechargeFilter] = useState<'all' | 'pendente' | 'concluido' | 'falhado'>('all');
+  const [rejectRechargeTx, setRejectRechargeTx] = useState<Transaction | null>(null);
+  const [rejectRechargeReason, setRejectRechargeReason] = useState<string>('Comprovativo ou referência não confirmados');
+
+  // Rejection modal state for withdrawals
   const [rejectModalTx, setRejectModalTx] = useState<Transaction | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>('Dados M-Pesa/e-Mola não coincidem com o titular');
+
+  // Adjustment reason state
+  const [adjustmentReasonInput, setAdjustmentReasonInput] = useState<string>('Ajuste Manual pelo Administrador');
 
   // Password reset modal state
   const [passwordResetUser, setPasswordResetUser] = useState<UserProfile | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState<string>('');
 
-  // Audit tab filters
+  // Audit tab filters and mode
+  const [auditMode, setAuditMode] = useState<'transactions' | 'adjustments'>('transactions');
   const [auditTypeFilter, setAuditTypeFilter] = useState<'all' | 'recarga' | 'levantamento' | 'rendimento' | 'bonus'>('all');
   const [auditSearch, setAuditSearch] = useState<string>('');
 
@@ -154,6 +165,10 @@ export const AdminView: React.FC = () => {
 
   const pendingWithdrawalsCount = transactions.filter(
     (t) => t.type === 'levantamento' && t.status === 'pendente'
+  ).length;
+
+  const pendingRechargesCount = transactions.filter(
+    (t) => t.type === 'recarga' && t.status === 'pendente'
   ).length;
 
   const handleOpenEditPlan = (plan: Plan) => {
@@ -201,7 +216,7 @@ export const AdminView: React.FC = () => {
       toast.error('Insira um valor válido de saldo.');
       return;
     }
-    adjustUserBalance(selectedUser.id, amount);
+    adjustUserBalance(selectedUser.id, amount, adjustmentReasonInput);
     setSelectedUser(null);
   };
 
@@ -229,6 +244,12 @@ export const AdminView: React.FC = () => {
     setRejectModalTx(null);
   };
 
+  const handleConfirmRechargeRejection = () => {
+    if (!rejectRechargeTx) return;
+    rejectRecharge(rejectRechargeTx.id, rejectRechargeReason);
+    setRejectRechargeTx(null);
+  };
+
   const handleConfirmPasswordReset = (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordResetUser) return;
@@ -249,6 +270,9 @@ export const AdminView: React.FC = () => {
     .filter((t) => (withdrawFilter === 'all' ? true : t.status === withdrawFilter));
 
   const allRecharges = transactions.filter((t) => t.type === 'recarga');
+  const filteredRecharges = transactions
+    .filter((t) => t.type === 'recarga')
+    .filter((t) => (rechargeFilter === 'all' ? true : t.status === rechargeFilter));
 
   const filteredAuditTransactions = transactions
     .filter((t) => (auditTypeFilter === 'all' ? true : t.type === auditTypeFilter))
@@ -435,7 +459,7 @@ export const AdminView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('recharges')}
-            className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 font-bold transition-all cursor-pointer ${
+            className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 font-bold transition-all cursor-pointer relative ${
               activeTab === 'recharges'
                 ? 'bg-primary text-primary-foreground shadow-sm'
                 : 'bg-secondary/70 text-muted-foreground hover:text-foreground'
@@ -443,6 +467,11 @@ export const AdminView: React.FC = () => {
           >
             <Wallet className="size-4" />
             <span>Recargas</span>
+            {pendingRechargesCount > 0 && (
+              <span className="ml-1 rounded-full bg-amber-500 text-slate-900 text-xs px-2.5 py-0.5 font-black animate-pulse">
+                {pendingRechargesCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -955,52 +984,162 @@ export const AdminView: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: RECARGAS */}
+        {/* TAB 3: RECARGAS & DEPÓSITOS COM APROVAÇÃO */}
         {activeTab === 'recharges' && (
           <div className="space-y-4 fade-up">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-base font-semibold text-foreground">
-                Auditoria de Recargas
-              </h2>
-              <span className="text-sm text-muted-foreground">
-                {allRecharges.length} depósitos efetuados
-              </span>
-            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-base sm:text-lg font-bold text-foreground">
+                  Validação & Auditoria de Depósitos
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Aprove ou rejeite pedidos de recarga após verificar o SMS oficial da Vodacom / Movitel.
+                </p>
+              </div>
 
-            <div className="space-y-2.5">
-              {allRecharges.map((t) => (
-                <div
-                  key={t.id}
-                  className="surface-card rounded-2xl p-3.5 border border-border/70 flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-display text-base font-bold text-success">
-                        +{formatCurrency(t.amount)}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full capitalize font-semibold bg-success/15 text-success">
-                        {t.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Origem: <strong className="text-foreground">{t.method}</strong>
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      Recebido em: {formatDate(t.createdAt)}
-                    </p>
-                  </div>
-
+              {/* Status Filter Pills */}
+              <div className="flex gap-1.5 bg-secondary rounded-xl p-1 text-xs font-bold overflow-x-auto">
+                {(['all', 'pendente', 'concluido', 'falhado'] as const).map((filter) => (
                   <button
+                    key={filter}
                     type="button"
-                    onClick={() => deleteTransaction(t.id)}
-                    className="text-muted-foreground hover:text-destructive p-1.5 transition-colors"
-                    title="Remover registo"
+                    onClick={() => setRechargeFilter(filter)}
+                    className={`px-3 py-1.5 rounded-lg capitalize whitespace-nowrap transition-colors cursor-pointer ${
+                      rechargeFilter === filter
+                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    <Trash2 className="size-4" />
+                    {filter === 'all'
+                      ? 'Todos'
+                      : filter === 'pendente'
+                      ? `Pendentes (${pendingRechargesCount})`
+                      : filter === 'concluido'
+                      ? 'Aprovados'
+                      : 'Rejeitados'}
                   </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
+
+            {/* Pending Recharges Banner */}
+            {pendingRechargesCount > 0 && rechargeFilter !== 'falhado' && rechargeFilter !== 'concluido' && (
+              <div className="flex items-center justify-between rounded-2xl bg-amber-500/15 border border-amber-500/30 p-3 text-xs sm:text-sm text-amber-900 font-semibold">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-600" />
+                  <span>
+                    Existem <strong>{pendingRechargesCount} depósito(s) pendente(s)</strong> a aguardar confirmação do SMS oficial.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {filteredRecharges.length === 0 ? (
+              <div className="surface-card rounded-2xl p-8 text-center border border-border/70">
+                <p className="text-sm font-semibold text-muted-foreground">
+                  Nenhum pedido de recarga encontrado nesta categoria.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredRecharges.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`surface-card rounded-2xl p-4 border transition-all ${
+                      t.status === 'pendente'
+                        ? 'border-amber-500/60 bg-amber-500/5 shadow-md'
+                        : 'border-border/70'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-display text-lg sm:text-xl font-black text-emerald-600">
+                            +{formatCurrency(t.amount)}
+                          </span>
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full capitalize font-bold ${
+                              t.status === 'concluido'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : t.status === 'pendente'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                                : 'bg-rose-100 text-rose-800 border border-rose-300'
+                            }`}
+                          >
+                            {t.status === 'concluido' ? 'Aprovado' : t.status === 'pendente' ? 'Pendente' : 'Rejeitado'}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-foreground font-semibold mt-1">
+                          Canal: <strong className="text-primary">{t.method}</strong>
+                          {t.userPhone && (
+                            <span className="text-muted-foreground"> • Telemóvel Pagador: +258 {t.userPhone}</span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                          <span>Data: {formatDate(t.createdAt)}</span>
+                          {t.reference && (
+                            <span className="font-mono bg-white border border-border px-2 py-0.5 rounded-md text-foreground font-bold">
+                              Ref SMS: {t.reference}
+                            </span>
+                          )}
+                          {t.userId && <span>• ID Utilizador: {t.userId}</span>}
+                        </div>
+
+                        {t.note && (
+                          <p className="text-xs text-rose-600 font-medium mt-1">
+                            Motivo da Rejeição: {t.note}
+                          </p>
+                        )}
+                      </div>
+
+                      {t.status === 'pendente' && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Confirma a validação e crédito de ${formatCurrency(t.amount)} para o utilizador (+258 ${t.userPhone})?`)) {
+                                approveRecharge(t.id);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-emerald-500 transition-colors shadow-sm cursor-pointer"
+                            title="Validar SMS e creditar saldo ao utilizador"
+                          >
+                            <Check className="size-4" />
+                            <span>Validar & Creditar</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectRechargeTx(t);
+                              setRejectRechargeReason('Comprovativo ou referência de SMS não confirmados na conta');
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-rose-600/15 border border-rose-500/30 px-3 py-2 text-xs sm:text-sm font-bold text-rose-600 hover:bg-rose-600/25 transition-colors cursor-pointer"
+                            title="Rejeitar pedido de recarga"
+                          >
+                            <X className="size-4" />
+                            <span>Rejeitar</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {t.status !== 'pendente' && (
+                        <button
+                          type="button"
+                          onClick={() => deleteTransaction(t.id)}
+                          className="text-muted-foreground hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors cursor-pointer self-end sm:self-center"
+                          title="Eliminar registo"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1240,7 +1379,6 @@ export const AdminView: React.FC = () => {
                         {purchases.filter(p => p.userId === u.id && p.status === 'ativo').length} equipamentos
                       </p>
                     </div>
-                  </div>
                   </div>
                 </div>
               ))}
@@ -1668,10 +1806,10 @@ export const AdminView: React.FC = () => {
               <div>
                 <h2 className="font-display text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
                   <History className="size-5 text-primary" />
-                  <span>Auditoria Completa de Transações</span>
+                  <span>Auditoria Completa & Transparência</span>
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Histórico completo de depósitos, saques, bónus e rendimentos com busca e filtros.
+                  Registo imutável de transações, saques, depósitos e ajustes manuais de saldo realizados pelo administrador.
                 </p>
               </div>
 
@@ -1687,6 +1825,33 @@ export const AdminView: React.FC = () => {
               </div>
             </div>
 
+            {/* Sub-mode Switcher */}
+            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setAuditMode('transactions')}
+                className={`py-2 px-3 rounded-xl transition-all cursor-pointer ${
+                  auditMode === 'transactions'
+                    ? 'bg-white text-foreground shadow-xs font-black'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Transações do Sistema ({transactions.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAuditMode('adjustments')}
+                className={`py-2 px-3 rounded-xl transition-all cursor-pointer ${
+                  auditMode === 'adjustments'
+                    ? 'bg-white text-foreground shadow-xs font-black'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Ajustes de Saldo & Bónus ({adjustmentLogs.length})
+              </button>
+            </div>
+
             {/* Filter and Search Bar */}
             <div className="surface-card rounded-2xl p-4 border border-border/80 space-y-3 bg-card">
               <div className="flex flex-col sm:flex-row gap-2.5">
@@ -1696,88 +1861,167 @@ export const AdminView: React.FC = () => {
                     type="text"
                     value={auditSearch}
                     onChange={(e) => setAuditSearch(e.target.value)}
-                    placeholder="Pesquisar por telefone, método, ref ou ID..."
+                    placeholder={
+                      auditMode === 'transactions'
+                        ? 'Pesquisar por telefone, método, ref ou ID...'
+                        : 'Pesquisar ajustes por telefone, motivo ou utilizador...'
+                    }
                     className="w-full rounded-xl border border-border bg-background pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                   />
                 </div>
 
-                <div className="flex gap-1 bg-secondary rounded-xl p-1 overflow-x-auto text-xs font-bold">
-                  {(['all', 'recarga', 'levantamento', 'rendimento', 'bonus'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setAuditTypeFilter(type)}
-                      className={`px-3 py-1.5 rounded-lg capitalize whitespace-nowrap transition-colors cursor-pointer ${
-                        auditTypeFilter === type
-                          ? 'bg-primary text-primary-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {type === 'all' ? 'Todas' : type}
-                    </button>
-                  ))}
-                </div>
+                {auditMode === 'transactions' && (
+                  <div className="flex gap-1 bg-secondary rounded-xl p-1 overflow-x-auto text-xs font-bold">
+                    {(['all', 'recarga', 'levantamento', 'rendimento', 'bonus'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setAuditTypeFilter(type)}
+                        className={`px-3 py-1.5 rounded-lg capitalize whitespace-nowrap transition-colors cursor-pointer ${
+                          auditTypeFilter === type
+                            ? 'bg-primary text-primary-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {type === 'all' ? 'Todas' : type}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {filteredAuditTransactions.length === 0 ? (
-              <div className="surface-card rounded-2xl p-8 text-center border border-border/70">
-                <p className="text-sm font-semibold text-muted-foreground">Nenhuma transação encontrada com estes filtros.</p>
-              </div>
+            {auditMode === 'transactions' ? (
+              filteredAuditTransactions.length === 0 ? (
+                <div className="surface-card rounded-2xl p-8 text-center border border-border/70">
+                  <p className="text-sm font-semibold text-muted-foreground">Nenhuma transação encontrada com estes filtros.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredAuditTransactions.map((t) => (
+                    <div
+                      key={t.id}
+                      className="surface-card rounded-2xl p-4 border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`font-display text-base font-bold ${
+                              t.type === 'recarga' || t.type === 'rendimento' || t.type === 'bonus'
+                                ? 'text-emerald-600'
+                                : 'text-foreground'
+                            }`}
+                          >
+                            {t.type === 'recarga' || t.type === 'rendimento' || t.type === 'bonus' ? '+' : '-'}
+                            {formatCurrency(t.amount)}
+                          </span>
+                          <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
+                            {t.type}
+                          </span>
+                          <span
+                            className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                              t.status === 'concluido'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : t.status === 'pendente'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground font-semibold mt-1">
+                          {t.method} {t.userPhone && <span className="text-muted-foreground">• Tel: +258 {t.userPhone}</span>}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Data: {formatDate(t.createdAt)} • Ref: {t.reference || t.id}
+                          {t.note && <span className="text-rose-600"> • Nota: {t.note}</span>}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteTransaction(t.id)}
+                        className="text-muted-foreground hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors cursor-pointer self-end sm:self-center"
+                        title="Eliminar transação"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="space-y-2.5">
-                {filteredAuditTransactions.map((t) => (
-                  <div
-                    key={t.id}
-                    className="surface-card rounded-2xl p-4 border border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`font-display text-base font-bold ${
-                            t.type === 'recarga' || t.type === 'rendimento' || t.type === 'bonus'
-                              ? 'text-emerald-600'
-                              : 'text-foreground'
-                          }`}
-                        >
-                          {t.type === 'recarga' || t.type === 'rendimento' || t.type === 'bonus' ? '+' : '-'}
-                          {formatCurrency(t.amount)}
-                        </span>
-                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
-                          {t.type}
-                        </span>
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                            t.status === 'concluido'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : t.status === 'pendente'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-rose-100 text-rose-800'
-                          }`}
-                        >
-                          {t.status}
+              adjustmentLogs.filter((log) => {
+                if (!auditSearch.trim()) return true;
+                const s = auditSearch.toLowerCase();
+                return (
+                  log.targetUserPhone.toLowerCase().includes(s) ||
+                  log.targetUserId.toLowerCase().includes(s) ||
+                  log.reason.toLowerCase().includes(s) ||
+                  log.type.toLowerCase().includes(s)
+                );
+              }).length === 0 ? (
+                <div className="surface-card rounded-2xl p-8 text-center border border-border/70">
+                  <p className="text-sm font-semibold text-muted-foreground">Nenhum registo de ajuste manual ou bónus encontrado.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {adjustmentLogs.filter((log) => {
+                    if (!auditSearch.trim()) return true;
+                    const s = auditSearch.toLowerCase();
+                    return (
+                      log.targetUserPhone.toLowerCase().includes(s) ||
+                      log.targetUserId.toLowerCase().includes(s) ||
+                      log.reason.toLowerCase().includes(s) ||
+                      log.type.toLowerCase().includes(s)
+                    );
+                  }).map((log) => (
+                    <div
+                      key={log.id}
+                      className="surface-card rounded-2xl p-4 border border-border/80 shadow-xs space-y-2 bg-card"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-display font-bold text-sm text-primary">ID {log.targetUserId}</span>
+                          <span className="font-bold text-foreground text-sm">+258 {log.targetUserPhone}</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
+                            {log.type.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {formatDate(log.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground font-semibold mt-1">
-                        {t.method} {t.userPhone && <span className="text-muted-foreground">• Tel: +258 {t.userPhone}</span>}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Data: {formatDate(t.createdAt)} • Ref: {t.reference || t.id}
-                        {t.note && <span className="text-rose-600"> • Nota: {t.note}</span>}
-                      </p>
-                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => deleteTransaction(t.id)}
-                      className="text-muted-foreground hover:text-destructive p-2 rounded-lg hover:bg-destructive/10 transition-colors cursor-pointer self-end sm:self-center"
-                      title="Eliminar transação"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs py-1">
+                        <div>
+                          <p className="text-muted-foreground">Saldo Anterior</p>
+                          <p className="font-bold text-foreground text-sm mt-0.5">{formatCurrency(log.previousBalance)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Valor do Ajuste</p>
+                          <p className={`font-black text-sm mt-0.5 ${log.newBalance >= log.previousBalance ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {log.newBalance >= log.previousBalance ? '+' : '-'}{formatCurrency(log.amount)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Novo Saldo Final</p>
+                          <p className="font-extrabold text-primary text-sm mt-0.5">{formatCurrency(log.newBalance)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Responsável</p>
+                          <p className="font-semibold text-foreground text-xs mt-0.5">{log.adminName}</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 border border-border/60 p-2 text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Justificação:</span> {log.reason}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
         )}

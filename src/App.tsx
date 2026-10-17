@@ -20,7 +20,6 @@ import { RulesView } from './views/RulesView';
 import { LoginView } from './views/LoginView';
 import { RegisterView } from './views/RegisterView';
 import { AdminView } from './views/AdminView';
-import { ModeSwitcherBar } from './components/ModeSwitcherBar';
 
 const MainRouter: React.FC = () => {
   const { currentRoute } = useSession();
@@ -70,9 +69,6 @@ const MainRouter: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center w-full">
-      {/* Persistent Mode Switcher Bar */}
-      <ModeSwitcherBar />
-
       <div className="w-full flex justify-center flex-1">
         {renderView()}
       </div>

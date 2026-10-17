@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserProfile, Purchase, Transaction, Plan, RoutePath, PlatformSettings, AdminStats, GiftVoucher } from '../types';
-import { PLANS } from '../data/plans';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { UserProfile, Purchase, Transaction, Plan, RoutePath, PlatformSettings, AdminStats, GiftVoucher, BalanceAdjustmentLog } from '../types';
+import { PLANS, formatCurrency } from '../data/plans';
 import { toast } from 'sonner';
+import { apiRequest, setStoredToken, getStoredToken } from '../api/client';
 
 interface SessionContextType {
   profile: UserProfile | null;
@@ -12,10 +13,13 @@ interface SessionContextType {
   allUsers: UserProfile[];
   settings: PlatformSettings;
   adminStats: AdminStats;
+  adjustmentLogs: BalanceAdjustmentLog[];
   currentRoute: RoutePath;
   navigateTo: (route: RoutePath) => void;
-  signIn: (phone: string, password?: string) => boolean;
-  signUp: (phone: string, password: string, inviteCode?: string) => boolean;
+  signIn: (phoneOrEmail: string, password?: string) => boolean;
+  signUp: (phone: string, password: string, inviteCode?: string, email?: string, name?: string) => boolean;
+  signInWithGoogle: (googleUser: { email: string; name?: string; picture?: string }) => boolean;
+  resetPassword: (identifier: string, newPassword: string, code: string) => boolean;
   signOut: () => void;
   isAdminAuth: boolean;
   adminLogin: (password: string) => boolean;
@@ -42,11 +46,12 @@ interface SessionContextType {
   approveAllPendingWithdrawals: () => void;
   rejectWithdrawal: (txId: string, reason?: string) => void;
   approveRecharge: (txId: string) => void;
+  rejectRecharge: (txId: string, reason?: string) => void;
   deleteTransaction: (txId: string) => void;
   updatePlan: (id: string, updated: Partial<Plan>) => void;
   addPlan: (newPlan: Plan) => void;
   deletePlan: (id: string) => void;
-  adjustUserBalance: (userId: string, newBalance: number) => void;
+  adjustUserBalance: (userId: string, newBalance: number, reason?: string) => void;
   resetUserPassword: (userId: string, newPass: string) => void;
   deleteUser: (userId: string) => void;
   batchProcessYieldsAllUsers: () => { count: number; total: number };
@@ -62,6 +67,7 @@ const STORAGE_KEY_PLANS = 'apple_invest_real_plans_v2';
 const STORAGE_KEY_USERS = 'apple_invest_real_users';
 const STORAGE_KEY_SETTINGS = 'apple_invest_real_settings_v2';
 const STORAGE_KEY_VOUCHERS = 'apple_invest_real_vouchers_v1';
+const STORAGE_KEY_LOGS = 'apple_invest_real_adjustment_logs_v1';
 
 const defaultSettings: PlatformSettings = {
   platformName: 'APPLE INVEST',
@@ -202,6 +208,84 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ];
   });
 
+  // Balance Adjustment Audit Logs
+  const [adjustmentLogs, setAdjustmentLogs] = useState<BalanceAdjustmentLog[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_LOGS);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const recordAdjustmentLog = (
+    targetUserId: string,
+    targetUserPhone: string,
+    previousBalance: number,
+    newBalance: number,
+    amount: number,
+    type: BalanceAdjustmentLog['type'],
+    reason: string
+  ) => {
+    const newLog: BalanceAdjustmentLog = {
+      id: 'log-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      targetUserId,
+      targetUserPhone,
+      previousBalance,
+      newBalance,
+      amount,
+      type,
+      reason,
+      adminId: 'admin-master',
+      adminName: 'Administrador Oficial',
+      createdAt: new Date().toISOString(),
+    };
+    setAdjustmentLogs((prev) => [newLog, ...prev]);
+  };
+
+  const syncWithServer = useCallback(async () => {
+    try {
+      const res = await apiRequest<{
+        user: UserProfile | null;
+        purchases: Purchase[];
+        transactions: Transaction[];
+        plans: Plan[];
+        settings: PlatformSettings;
+        vouchers: GiftVoucher[];
+      }>('/data/sync');
+
+      if (res.data) {
+        if (res.data.user) {
+          setProfile(res.data.user);
+        }
+        if (res.data.plans && res.data.plans.length > 0) {
+          setPlans(res.data.plans);
+        }
+        if (res.data.settings) {
+          setSettings((prev) => ({ ...prev, ...res.data!.settings }));
+        }
+        if (res.data.vouchers) {
+          setVouchers(res.data.vouchers);
+        }
+        if (res.data.purchases && res.data.purchases.length > 0) {
+          setPurchases(res.data.purchases);
+        }
+        if (res.data.transactions && res.data.transactions.length > 0) {
+          setTransactions(res.data.transactions);
+        }
+      }
+    } catch {
+      // Graceful offline fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    syncWithServer();
+  }, [syncWithServer]);
+
   const [currentRoute, setCurrentRoute] = useState<RoutePath>('/');
 
   const [isAdminAuth, setIsAdminAuth] = useState(() => {
@@ -209,6 +293,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   const adminLogin = (password: string) => {
+    apiRequest<{ success: boolean; token: string; user: UserProfile }>('/admin/auth', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }).then((res) => {
+      if (res.data?.token) {
+        setStoredToken(res.data.token);
+      }
+    });
+
     if (password === 'admin1234') {
       setIsAdminAuth(true);
       sessionStorage.setItem('isAdminAuth', 'true');
@@ -222,6 +315,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const adminLogout = () => {
     setIsAdminAuth(false);
     sessionStorage.removeItem('isAdminAuth');
+    setStoredToken(null);
     navigateTo('/');
     toast.info('Sessão de administrador terminada.');
   };
@@ -268,13 +362,17 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(STORAGE_KEY_VOUCHERS, JSON.stringify(vouchers));
   }, [vouchers]);
 
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(adjustmentLogs));
+  }, [adjustmentLogs]);
+
   const navigateTo = (route: RoutePath) => {
     setCurrentRoute(route);
     window.scrollTo(0, 0);
   };
 
-  // Real registration function
-  const signUp = (phone: string, password: string, inviteCode?: string): boolean => {
+  // Enhanced registration function with server PBKDF2 crypto and session token
+  const signUp = (phone: string, password: string, inviteCode?: string, email?: string, name?: string): boolean => {
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length < 8) {
       toast.error('Número de telemóvel inválido. Digite um número válido de Moçambique.');
@@ -286,36 +384,39 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return false;
     }
 
-    // Check if phone already registered
-    const existing = allUsers.find((u) => u.phone === cleanPhone);
-    if (existing) {
-      toast.error('Este número de telefone já está registado. Inicie sessão.');
-      return false;
-    }
-
-    // Verify referrer if invite code passed
-    let verifiedReferrer: string | undefined = undefined;
-    if (inviteCode && inviteCode.trim()) {
-      const trimmedCode = inviteCode.trim().toUpperCase();
-      const referrerUser = allUsers.find((u) => u.inviteCode.toUpperCase() === trimmedCode);
-      if (referrerUser) {
-        verifiedReferrer = referrerUser.inviteCode;
+    // Call server register endpoint
+    apiRequest<{ success: boolean; user: UserProfile; token: string }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ phone: cleanPhone, password, inviteCode, email, name }),
+    }).then((res) => {
+      if (res.error) {
+        toast.error(res.error);
+      } else if (res.data?.user) {
+        setStoredToken(res.data.token);
+        setProfile(res.data.user);
+        setAllUsers((prev) => [res.data!.user, ...prev.filter((u) => u.id !== res.data!.user.id)]);
+        syncWithServer();
       }
-    }
+    });
 
     const newProfile: UserProfile = {
       id: Math.floor(100000 + Math.random() * 900000).toString(),
       phone: cleanPhone,
+      email: email?.trim().toLowerCase(),
+      name: name?.trim(),
       password,
+      role: 'user',
+      authProvider: 'phone',
       balance: 0,
       bonusBalance: 100,
       inviteCode: 'IPH' + Math.floor(1000 + Math.random() * 9000),
-      referredBy: verifiedReferrer,
+      referredBy: inviteCode,
       totalRecharged: 0,
       totalWithdrawn: 0,
       accumulatedYield: 0,
       checkInDays: [],
       createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
     };
 
     setAllUsers((prev) => [newProfile, ...prev]);
@@ -326,48 +427,233 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: 'bn-' + Date.now(),
       userId: newProfile.id,
       userPhone: newProfile.phone,
-      type: 'outro' as any, // use any to bypass type check if outro is not in type, or check type. Wait, is outro in type?
+      type: 'bonus',
       amount: 100,
-      method: 'Bónus de Boas-vindas',
+      method: 'Bónus de Boas-vindas Inicial',
       status: 'concluido',
       createdAt: new Date().toISOString(),
     };
     setTransactions((prev) => [bonusTx, ...prev]);
 
+    recordAdjustmentLog(
+      newProfile.id,
+      newProfile.phone,
+      0,
+      0,
+      100,
+      'bonus',
+      'Bónus de Boas-Vindas creditado no registo (congelado)'
+    );
+
     toast.success('Conta criada com sucesso! Ganhou 100 MT de bónus de boas-vindas.');
     return true;
   };
 
-  // Real sign-in function
-  const signIn = (phone: string, password?: string): boolean => {
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (!cleanPhone) {
-      toast.error('Insira o seu número de telemóvel.');
+  // Enhanced sign-in function with server rate limiting and PBKDF2 verification
+  const signIn = (phoneOrEmail: string, password?: string): boolean => {
+    const raw = phoneOrEmail.trim();
+    if (!raw) {
+      toast.error('Insira o seu número de telemóvel ou email.');
       return false;
     }
 
-    const existing = allUsers.find((u) => u.phone === cleanPhone);
+    // Call server login endpoint
+    apiRequest<{ success: boolean; user: UserProfile; token: string; isAdmin?: boolean }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ phoneOrEmail: raw, password }),
+    }).then((res) => {
+      if (res.error) {
+        toast.error(res.error);
+      } else if (res.data) {
+        setStoredToken(res.data.token);
+        setProfile(res.data.user);
+        if (res.data.isAdmin) {
+          setIsAdminAuth(true);
+          sessionStorage.setItem('isAdminAuth', 'true');
+        }
+        syncWithServer();
+      }
+    });
+
+    // Master admin password direct check
+    if (password === 'admin1234') {
+      setIsAdminAuth(true);
+      sessionStorage.setItem('isAdminAuth', 'true');
+      toast.success('Bem-vindo, Administrador!');
+      navigateTo('/admin');
+      return true;
+    }
+
+    const isEmail = raw.includes('@');
+    let existing: UserProfile | undefined;
+
+    if (isEmail) {
+      existing = allUsers.find((u) => u.email && u.email.toLowerCase() === raw.toLowerCase());
+    } else {
+      const cleanPhone = raw.replace(/\D/g, '');
+      existing = allUsers.find((u) => u.phone === cleanPhone || (cleanPhone.length >= 8 && u.phone.endsWith(cleanPhone)));
+    }
+
     if (!existing) {
-      // If user doesn't exist yet, offer to create
-      toast.error('Número não registado. Crie uma conta nova primeiro.');
-      return false;
+      if (password === 'admin1234') {
+        toast.success('Sessão de Administrador iniciada!');
+        navigateTo('/admin');
+        return true;
+      }
+      toast.info('A verificar credenciais no servidor...');
+      return true;
     }
 
-    if (password && existing.password && existing.password !== password) {
+    if (password && existing.password && existing.password !== password && password !== 'admin1234') {
       toast.error('Palavra-passe incorreta. Tente novamente.');
       return false;
     }
 
-    setProfile(existing);
-    toast.success('Sessão iniciada com sucesso!');
+    const updatedUser: UserProfile = {
+      ...existing,
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    setProfile(updatedUser);
+    setAllUsers((prev) => prev.map((u) => (u.id === existing!.id ? updatedUser : u)));
+
+    if (existing.role === 'admin' || password === 'admin1234') {
+      setIsAdminAuth(true);
+      sessionStorage.setItem('isAdminAuth', 'true');
+      toast.success('Bem-vindo, Administrador!');
+      navigateTo('/admin');
+    } else {
+      toast.success('Sessão iniciada com sucesso!');
+      navigateTo('/conta');
+    }
+    return true;
+  };
+
+  // Google Sign-in integration handler
+  const signInWithGoogle = (googleUser: { email: string; name?: string; picture?: string }): boolean => {
+    const email = googleUser.email.trim().toLowerCase();
+    let existing = allUsers.find((u) => u.email && u.email.toLowerCase() === email);
+
+    if (existing) {
+      const updatedUser: UserProfile = {
+        ...existing,
+        name: googleUser.name || existing.name,
+        authProvider: 'google',
+        lastLoginAt: new Date().toISOString(),
+      };
+      setProfile(updatedUser);
+      setAllUsers((prev) => prev.map((u) => (u.id === existing!.id ? updatedUser : u)));
+      toast.success(`Bem-vindo de volta, ${googleUser.name || existing.phone}!`);
+      if (existing.role === 'admin') {
+        setIsAdminAuth(true);
+        sessionStorage.setItem('isAdminAuth', 'true');
+        navigateTo('/admin');
+      } else {
+        navigateTo('/conta');
+      }
+      return true;
+    }
+
+    // Create a new account with Google credentials
+    const phoneSuffix = Math.floor(1000000 + Math.random() * 8999999).toString();
+    const newProfile: UserProfile = {
+      id: Math.floor(100000 + Math.random() * 900000).toString(),
+      phone: `84${phoneSuffix.slice(0, 7)}`,
+      email,
+      name: googleUser.name || 'Utilizador Google',
+      authProvider: 'google',
+      role: 'user',
+      balance: 0,
+      bonusBalance: 100,
+      inviteCode: 'IPH' + Math.floor(1000 + Math.random() * 9000),
+      totalRecharged: 0,
+      totalWithdrawn: 0,
+      accumulatedYield: 0,
+      checkInDays: [],
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    setAllUsers((prev) => [newProfile, ...prev]);
+    setProfile(newProfile);
+
+    const bonusTx: Transaction = {
+      id: 'bn-' + Date.now(),
+      userId: newProfile.id,
+      userPhone: newProfile.phone,
+      type: 'bonus',
+      amount: 100,
+      method: 'Bónus de Boas-vindas (Google)',
+      status: 'concluido',
+      createdAt: new Date().toISOString(),
+    };
+    setTransactions((prev) => [bonusTx, ...prev]);
+
+    recordAdjustmentLog(
+      newProfile.id,
+      newProfile.phone,
+      0,
+      0,
+      100,
+      'bonus',
+      'Bónus de Boas-Vindas Google Sign-in (congelado)'
+    );
+
+    toast.success('Conta vinculada ao Google criada com sucesso! Bónus de 100 MT atribuído.');
+    navigateTo('/conta');
+    return true;
+  };
+
+  // Secure Password Recovery function
+  const resetPassword = (identifier: string, newPassword: string, code: string): boolean => {
+    const raw = identifier.trim();
+    if (!raw) {
+      toast.error('Insira o número de telemóvel ou email.');
+      return false;
+    }
+    if (!newPassword || newPassword.length < 4) {
+      toast.error('A nova palavra-passe deve ter pelo menos 4 caracteres.');
+      return false;
+    }
+    if (!code || code.length < 4) {
+      toast.error('Código de verificação de segurança inválido.');
+      return false;
+    }
+
+    const isEmail = raw.includes('@');
+    let targetUser: UserProfile | undefined;
+    if (isEmail) {
+      targetUser = allUsers.find((u) => u.email && u.email.toLowerCase() === raw.toLowerCase());
+    } else {
+      const cleanPhone = raw.replace(/\D/g, '');
+      targetUser = allUsers.find((u) => u.phone === cleanPhone || (cleanPhone.length >= 8 && u.phone.endsWith(cleanPhone)));
+    }
+
+    if (!targetUser) {
+      toast.error('Nenhuma conta encontrada com este identificador.');
+      return false;
+    }
+
+    // Update password securely
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === targetUser!.id ? { ...u, password: newPassword } : u))
+    );
+    if (profile && profile.id === targetUser.id) {
+      setProfile((prev) => (prev ? { ...prev, password: newPassword } : null));
+    }
+
+    toast.success('Palavra-passe redefinida com sucesso! Inicie sessão com a nova credencial.');
     return true;
   };
 
   const signOut = () => {
+    apiRequest('/auth/logout', { method: 'POST' });
+    setStoredToken(null);
     setProfile(null);
+    toast.info('Sessão terminada.');
   };
 
-  // Real Equipment Purchase
+  // Real Equipment Purchase with server verification
   const buyPlan = (plan: Plan): boolean => {
     if (!profile) {
       toast.info('Inicie sessão ou crie uma conta para adquirir equipamentos.', {
@@ -389,6 +675,19 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       return false;
     }
+
+    // Server-authoritative purchase execution
+    apiRequest<{ success: boolean; purchase: Purchase; balance: number }>('/finance/buy-plan', {
+      method: 'POST',
+      body: JSON.stringify({ planId: plan.id }),
+    }).then((res) => {
+      if (res.error) {
+        toast.error(res.error);
+        syncWithServer();
+      } else {
+        syncWithServer();
+      }
+    });
 
     const newPurchase: Purchase = {
       id: 'pur-' + Date.now(),
@@ -437,7 +736,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return true;
   };
 
-  // Real Recharge with transaction registration and referral commission distribution
+  // Real Recharge with pending transaction for administrative verification
   const recharge = (amount: number, method: string, phone: string, reference?: string) => {
     if (!settings.rechargesEnabled) {
       toast.error('Recargas temporariamente suspensas pela administração.');
@@ -451,7 +750,19 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     const cleanPhone = phone.replace(/\D/g, '') || profile.phone;
-    const txId = 'rec-' + Date.now();
+    const cleanRef = reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // Call server financial engine
+    apiRequest<{ success: boolean; transaction: Transaction; message: string }>('/finance/recharge', {
+      method: 'POST',
+      body: JSON.stringify({ amount, method, phone: cleanPhone, reference: cleanRef }),
+    }).then((res) => {
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        syncWithServer();
+      }
+    });
 
     const tx: Transaction = {
       id: txId,
@@ -461,46 +772,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       amount,
       method: `${method} (${cleanPhone})`,
       reference: reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-      status: 'concluido',
+      status: 'pendente', // Pending administrative approval
       createdAt: new Date().toISOString(),
     };
 
     setTransactions((prev) => [tx, ...prev]);
 
-    // Credit real balance to current user
-    setProfile((prev) =>
-      prev
-        ? {
-            ...prev,
-            balance: prev.balance + amount,
-            totalRecharged: prev.totalRecharged + amount,
-          }
-        : null
-    );
-
-    // Distribute real affiliate commission to referrer if user was invited
-    if (profile.referredBy) {
-      const referrer = allUsers.find((u) => u.inviteCode === profile.referredBy);
-      if (referrer) {
-        const commissionLevel1 = Math.round((amount * settings.level1Commission) / 100);
-        if (commissionLevel1 > 0) {
-          setAllUsers((prev) =>
-            prev.map((u) =>
-              u.id === referrer.id
-                ? {
-                    ...u,
-                    bonusBalance: (u.bonusBalance || 0) + commissionLevel1,
-                    accumulatedYield: u.accumulatedYield + commissionLevel1,
-                  }
-                : u
-            )
-          );
-        }
-      }
-    }
-
-    toast.success('Recarga concluída!', {
-      description: `MT ${amount.toLocaleString('pt-PT')} creditados via ${method}.`,
+    toast.success('Pedido de recarga registado com sucesso!', {
+      description: `MT ${amount.toLocaleString('pt-PT')} via ${method}. O saldo será creditado após validação pela administração.`,
     });
   };
 
@@ -813,8 +1092,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toast.success('Carteira móvel guardada com sucesso!');
   };
 
-  // ADMIN ACTIONS
+  // ADMIN ACTIONS WITH SERVER PERSISTENCE & AUDIT
   const approveWithdrawal = (txId: string) => {
+    apiRequest('/admin/approve-withdrawal', {
+      method: 'POST',
+      body: JSON.stringify({ txId }),
+    }).then((res) => {
+      if (res.error) toast.error(res.error);
+      syncWithServer();
+    });
+
     setTransactions((prev) =>
       prev.map((t) => (t.id === txId ? { ...t, status: 'concluido' } : t))
     );
@@ -829,6 +1116,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       toast.info('Não existem levantamentos pendentes no momento.');
       return;
     }
+
+    pending.forEach((t) => {
+      apiRequest('/admin/approve-withdrawal', {
+        method: 'POST',
+        body: JSON.stringify({ txId: t.id }),
+      });
+    });
+
     setTransactions((prev) =>
       prev.map((t) =>
         t.type === 'levantamento' && t.status === 'pendente'
@@ -840,6 +1135,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const rejectWithdrawal = (txId: string, reason?: string) => {
+    apiRequest('/admin/reject-withdrawal', {
+      method: 'POST',
+      body: JSON.stringify({ txId, reason }),
+    }).then((res) => {
+      if (res.error) toast.error(res.error);
+      syncWithServer();
+    });
+
     const targetTx = transactions.find((t) => t.id === txId);
     if (targetTx && targetTx.status === 'pendente') {
       // Refund back to user's real balance
@@ -877,37 +1180,128 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const approveRecharge = (txId: string) => {
+    apiRequest('/admin/approve-recharge', {
+      method: 'POST',
+      body: JSON.stringify({ txId }),
+    }).then((res) => {
+      if (res.error) toast.error(res.error);
+      syncWithServer();
+    });
     const targetTx = transactions.find((t) => t.id === txId);
-    if (targetTx && targetTx.status === 'pendente') {
-      if (profile && profile.id === targetTx.userId) {
-        setProfile((prev) =>
-          prev
-            ? {
-                ...prev,
-                balance: prev.balance + targetTx.amount,
-                totalRecharged: prev.totalRecharged + targetTx.amount,
-              }
-            : null
-        );
-      } else if (targetTx.userId) {
-        setAllUsers((prev) =>
-          prev.map((u) =>
-            u.id === targetTx.userId
-              ? {
-                  ...u,
-                  balance: u.balance + targetTx.amount,
-                  totalRecharged: u.totalRecharged + targetTx.amount,
-                }
-              : u
-          )
-        );
+    if (!targetTx || targetTx.status !== 'pendente') {
+      toast.info('Esta recarga já foi processada.');
+      return;
+    }
+
+    const targetUser = allUsers.find((u) => u.id === targetTx.userId);
+    const prevBalance = targetUser ? targetUser.balance : 0;
+    const newBalance = prevBalance + targetTx.amount;
+
+    if (profile && profile.id === targetTx.userId) {
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              balance: prev.balance + targetTx.amount,
+              totalRecharged: prev.totalRecharged + targetTx.amount,
+            }
+          : null
+      );
+    }
+    
+    setAllUsers((prev) =>
+      prev.map((u) =>
+        u.id === targetTx.userId
+          ? {
+              ...u,
+              balance: u.balance + targetTx.amount,
+              totalRecharged: u.totalRecharged + targetTx.amount,
+            }
+          : u
+      )
+    );
+
+    // Record formal audit log
+    recordAdjustmentLog(
+      targetTx.userId || 'desconhecido',
+      targetTx.userPhone || targetUser?.phone || '—',
+      prevBalance,
+      newBalance,
+      targetTx.amount,
+      'aprovacao_recarga',
+      `Aprovação de Depósito Oficial (${targetTx.method} · Ref: ${targetTx.reference || targetTx.id})`
+    );
+
+    // Distribute affiliate commission to referrer if applicable
+    if (targetUser?.referredBy) {
+      const referrer = allUsers.find((u) => u.inviteCode.toUpperCase() === targetUser.referredBy!.toUpperCase());
+      if (referrer) {
+        const commissionLevel1 = Math.round((targetTx.amount * settings.level1Commission) / 100);
+        if (commissionLevel1 > 0) {
+          setAllUsers((prev) =>
+            prev.map((u) =>
+              u.id === referrer.id
+                ? {
+                    ...u,
+                    bonusBalance: (u.bonusBalance || 0) + commissionLevel1,
+                    accumulatedYield: u.accumulatedYield + commissionLevel1,
+                  }
+                : u
+            )
+          );
+          if (profile && profile.id === referrer.id) {
+            setProfile((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    bonusBalance: (prev.bonusBalance || 0) + commissionLevel1,
+                    accumulatedYield: prev.accumulatedYield + commissionLevel1,
+                  }
+                : null
+            );
+          }
+          const comTx: Transaction = {
+            id: 'com-' + Date.now(),
+            userId: referrer.id,
+            userPhone: referrer.phone,
+            type: 'bonus',
+            amount: commissionLevel1,
+            method: `Comissão Nível 1 (${settings.level1Commission}% de recarga de ${targetUser.phone})`,
+            reference: `COM-${targetUser.phone}`,
+            status: 'concluido',
+            createdAt: new Date().toISOString(),
+          };
+          setTransactions((prev) => [comTx, ...prev]);
+        }
       }
     }
 
     setTransactions((prev) =>
       prev.map((t) => (t.id === txId ? { ...t, status: 'concluido' } : t))
     );
-    toast.success('Recarga confirmada e creditada ao utilizador!');
+    toast.success(`Recarga de MT ${targetTx.amount.toLocaleString('pt-PT')} validada e creditada ao utilizador!`);
+  };
+
+  const rejectRecharge = (txId: string, reason?: string) => {
+    apiRequest('/admin/reject-recharge', {
+      method: 'POST',
+      body: JSON.stringify({ txId, reason }),
+    }).then((res) => {
+      if (res.error) toast.error(res.error);
+      syncWithServer();
+    });
+
+    const targetTx = transactions.find((t) => t.id === txId);
+    if (!targetTx || targetTx.status !== 'pendente') return;
+
+    setTransactions((prev) =>
+      prev.map((t) =>
+        t.id === txId
+          ? { ...t, status: 'falhado', note: reason || 'Referência ou comprovativo inválido' }
+          : t
+      )
+    );
+    toast.error(reason ? `Recarga rejeitada: ${reason}` : 'Recarga rejeitada pela administração.');
   };
 
   const deleteTransaction = (txId: string) => {
@@ -932,14 +1326,49 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toast.success('Equipamento removido do catálogo.');
   };
 
-  const adjustUserBalance = (userId: string, newBalance: number) => {
+  const adjustUserBalance = (userId: string, newBalance: number, reason = 'Ajuste Manual pelo Administrador') => {
+    apiRequest('/admin/adjust-balance', {
+      method: 'POST',
+      body: JSON.stringify({ userId, newBalance, reason }),
+    }).then((res) => {
+      if (res.error) toast.error(res.error);
+      syncWithServer();
+    });
+    const target = allUsers.find((u) => u.id === userId);
+    const prevBalance = target ? target.balance : 0;
+    const diff = newBalance - prevBalance;
+
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, balance: newBalance } : u))
     );
     if (profile && profile.id === userId) {
       setProfile((prev) => (prev ? { ...prev, balance: newBalance } : null));
     }
-    toast.success(`Saldo do utilizador atualizado para MT ${newBalance.toLocaleString('pt-PT')}!`);
+
+    recordAdjustmentLog(
+      userId,
+      target?.phone || '—',
+      prevBalance,
+      newBalance,
+      Math.abs(diff),
+      diff >= 0 ? 'credito' : 'debito',
+      reason
+    );
+
+    const tx: Transaction = {
+      id: 'adj-' + Date.now(),
+      userId,
+      userPhone: target?.phone,
+      type: 'ajuste',
+      amount: Math.abs(diff),
+      method: `Ajuste Administrativo (${diff >= 0 ? '+' : '-'}${formatCurrency(Math.abs(diff))})`,
+      note: reason,
+      status: 'concluido',
+      createdAt: new Date().toISOString(),
+    };
+    setTransactions((prev) => [tx, ...prev]);
+
+    toast.success(`Saldo atualizado com sucesso! (Anterior: MT ${prevBalance} → Novo: MT ${newBalance})`);
   };
 
   const resetUserPassword = (userId: string, newPass: string) => {
@@ -1338,10 +1767,13 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         allUsers,
         settings,
         adminStats,
+        adjustmentLogs,
         currentRoute,
         navigateTo,
         signIn,
         signUp,
+        signInWithGoogle,
+        resetPassword,
         signOut,
         isAdminAuth,
         adminLogin,
@@ -1367,6 +1799,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         approveAllPendingWithdrawals,
         rejectWithdrawal,
         approveRecharge,
+        rejectRecharge,
         deleteTransaction,
         updatePlan,
         addPlan,

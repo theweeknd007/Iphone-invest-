@@ -38,7 +38,11 @@ export interface MobileWallet {
 export interface UserProfile {
   id: string;
   phone: string;
+  email?: string;
+  name?: string;
   password?: string;
+  role?: 'user' | 'admin';
+  authProvider?: 'phone' | 'google' | 'email';
   balance: number;
   bonusBalance?: number;
   inviteCode: string;
@@ -52,6 +56,21 @@ export interface UserProfile {
   lastYieldCollectedAt?: string;
   checkInDays: number[];
   createdAt?: string;
+  lastLoginAt?: string;
+}
+
+export interface BalanceAdjustmentLog {
+  id: string;
+  targetUserId: string;
+  targetUserPhone: string;
+  previousBalance: number;
+  newBalance: number;
+  amount: number;
+  type: 'credito' | 'debito' | 'ajuste' | 'bonus' | 'congelado' | 'aprovacao_recarga';
+  reason: string;
+  adminId: string;
+  adminName: string;
+  createdAt: string;
 }
 
 export interface Transaction {

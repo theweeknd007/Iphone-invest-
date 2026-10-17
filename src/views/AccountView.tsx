@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Wallet,
   BadgeDollarSign,
@@ -30,6 +30,7 @@ interface MenuItemProps {
   label: string;
   to?: RoutePath;
   onClick?: () => void;
+  externalHref?: string;
 }
 
 export const AccountView: React.FC = () => {
@@ -38,7 +39,22 @@ export const AccountView: React.FC = () => {
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [voucherInput, setVoucherInput] = useState('');
 
-  const MenuItem: React.FC<MenuItemProps> = ({ icon: Icon, label, to, onClick }) => {
+  const MenuItem: React.FC<MenuItemProps> = ({ icon: Icon, label, to, onClick, externalHref }) => {
+    if (externalHref) {
+      return (
+        <a
+          href={externalHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex w-full items-center gap-3 border-b border-border/60 px-4 py-3.5 text-left transition-colors last:border-0 hover:bg-secondary/60 cursor-pointer"
+        >
+          <Icon className="size-[18px] shrink-0 text-primary" strokeWidth={1.7} />
+          <span className="min-w-0 flex-1 truncate text-base text-foreground">{label}</span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </a>
+      );
+    }
+
     const handleClick = () => {
       if (to) {
         navigateTo(to);
@@ -137,7 +153,7 @@ export const AccountView: React.FC = () => {
           <MenuItem
             icon={MessageCircle}
             label="Grupo Oficial do WhatsApp"
-            onClick={() => window.open(whatsappGroup, '_blank')}
+            externalHref={whatsappGroup}
           />
           <MenuItem icon={Info} label="Sobre nós" to="/sobre" />
           <MenuItem icon={ShieldCheck} label="Regras da plataforma" to="/regras" />
