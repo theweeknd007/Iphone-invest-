@@ -55,6 +55,7 @@ export const SupportView: React.FC = () => {
           </p>
 
           <div className="pt-1 flex flex-col gap-2">
+
             <a
               href={`https://wa.me/${cleanPhone}`}
               target="_blank"
@@ -62,7 +63,7 @@ export const SupportView: React.FC = () => {
               className="flex items-center justify-center gap-2 rounded-xl bg-secondary/80 text-foreground py-2.5 px-4 text-sm font-semibold border border-border hover:bg-secondary transition-colors"
             >
               <MessageCircle className="size-4 text-emerald-400" />
-              <span>Suporte Direto ({settings.supportWhatsapp})</span>
+              <span>Suporte Direto WhatsApp ({settings.supportWhatsapp})</span>
             </a>
 
             <a

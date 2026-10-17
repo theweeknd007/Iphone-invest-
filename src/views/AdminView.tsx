@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   LayoutDashboard,
   BadgeDollarSign,
@@ -36,8 +36,16 @@ import {
   History,
   CheckCheck,
   FileSpreadsheet,
+  MessageSquare,
+  Video,
+  Image as ImageIcon,
+  Upload,
+  Paperclip,
+  Send,
 } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
+import { useChat } from '../context/ChatContext';
+import { apiRequest, getStoredToken } from '../api/client';
 import { formatCurrency, formatDate } from '../data/plans';
 import { Plan, PlatformSettings, UserProfile, Transaction } from '../types';
 import { toast } from 'sonner';
@@ -54,7 +62,8 @@ type AdminTab =
   | 'cycles'
   | 'broadcast'
   | 'audit'
-  | 'settings';
+  | 'settings'
+  | 'chat';
 
 export const AdminView: React.FC = () => {
   const {

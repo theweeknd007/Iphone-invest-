@@ -297,19 +297,19 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       method: 'POST',
       body: JSON.stringify({ password }),
     }).then((res) => {
-      if (res.data?.token) {
+      if (res.data?.success && res.data.token) {
         setStoredToken(res.data.token);
+        setIsAdminAuth(true);
+        sessionStorage.setItem('isAdminAuth', 'true');
+        if (res.data.user) {
+          setProfile(res.data.user);
+        }
+        toast.success('Sessão de Administrador iniciada com sucesso.');
+      } else {
+        toast.error(res.error || 'Palavra-passe de administrador incorreta.');
       }
     });
-
-    if (password === 'admin1234') {
-      setIsAdminAuth(true);
-      sessionStorage.setItem('isAdminAuth', 'true');
-      toast.success('Sessão de administrador iniciada com sucesso.');
-      return true;
-    }
-    toast.error('Palavra-passe de administrador incorreta.');
-    return false;
+    return true;
   };
 
   const adminLogout = () => {
@@ -470,19 +470,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (res.data.isAdmin) {
           setIsAdminAuth(true);
           sessionStorage.setItem('isAdminAuth', 'true');
+          toast.success('Bem-vindo, Administrador!');
+          navigateTo('/admin');
+        } else {
+          toast.success('Sessão iniciada com sucesso!');
+          navigateTo('/conta');
         }
         syncWithServer();
       }
     });
-
-    // Master admin password direct check
-    if (password === 'admin1234') {
-      setIsAdminAuth(true);
-      sessionStorage.setItem('isAdminAuth', 'true');
-      toast.success('Bem-vindo, Administrador!');
-      navigateTo('/admin');
-      return true;
-    }
 
     const isEmail = raw.includes('@');
     let existing: UserProfile | undefined;
@@ -495,16 +491,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     if (!existing) {
-      if (password === 'admin1234') {
-        toast.success('Sessão de Administrador iniciada!');
-        navigateTo('/admin');
-        return true;
-      }
       toast.info('A verificar credenciais no servidor...');
       return true;
     }
 
-    if (password && existing.password && existing.password !== password && password !== 'admin1234') {
+    if (password && existing.password && existing.password !== password) {
       toast.error('Palavra-passe incorreta. Tente novamente.');
       return false;
     }
@@ -517,7 +508,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setProfile(updatedUser);
     setAllUsers((prev) => prev.map((u) => (u.id === existing!.id ? updatedUser : u)));
 
-    if (existing.role === 'admin' || password === 'admin1234') {
+    if (existing.role === 'admin') {
       setIsAdminAuth(true);
       sessionStorage.setItem('isAdminAuth', 'true');
       toast.success('Bem-vindo, Administrador!');
@@ -751,6 +742,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const cleanPhone = phone.replace(/\D/g, '') || profile.phone;
     const cleanRef = reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+    const txId = 'rec-' + Date.now();
 
     // Call server financial engine
     apiRequest<{ success: boolean; transaction: Transaction; message: string }>('/finance/recharge', {
@@ -771,7 +763,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       type: 'recarga',
       amount,
       method: `${method} (${cleanPhone})`,
-      reference: reference || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
+      reference: cleanRef,
       status: 'pendente', // Pending administrative approval
       createdAt: new Date().toISOString(),
     };

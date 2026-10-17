@@ -1,4 +1,4 @@
-import { UserProfile, Purchase, Transaction, Plan, PlatformSettings, GiftVoucher, BalanceAdjustmentLog } from '../types';
+import { UserProfile, Purchase, Transaction, Plan, PlatformSettings, GiftVoucher, BalanceAdjustmentLog, ChatMessage, ChatConversation } from '../types';
 
 export interface SecurityAuditLog {
   id: string;
@@ -52,4 +52,6 @@ export interface DatabaseSchema {
   securityLogs: SecurityAuditLog[];
   settings: PlatformSettings;
   sessions: UserSession[];
+  messages: ChatMessage[];
+  conversations: ChatConversation[];
 }

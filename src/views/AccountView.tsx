@@ -157,8 +157,9 @@ export const AccountView: React.FC = () => {
           />
           <MenuItem icon={Info} label="Sobre nós" to="/sobre" />
           <MenuItem icon={ShieldCheck} label="Regras da plataforma" to="/regras" />
-          <MenuItem icon={Headphones} label="Apoio ao cliente" to="/suporte" />
-          <MenuItem icon={ShieldAlert} label="Painel de Administração (Admin)" to="/admin" />
+          {profile?.role === 'admin' ? (
+            <MenuItem icon={ShieldAlert} label="Painel de Administração" to="/admin" />
+          ) : null}
           {signedIn ? (
             <MenuItem
               icon={LogOut}

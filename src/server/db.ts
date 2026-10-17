@@ -55,6 +55,8 @@ function getInitialDatabase(): DatabaseSchema {
     securityLogs: [],
     settings: defaultSettings,
     sessions: [],
+    messages: [],
+    conversations: [],
   };
 }
 
@@ -108,6 +110,8 @@ export function initDatabase(): DatabaseSchema {
       if (!dbCache!.securityLogs) dbCache!.securityLogs = [];
       if (!dbCache!.settings) dbCache!.settings = defaultSettings;
       if (!dbCache!.sessions) dbCache!.sessions = [];
+      if (!dbCache!.messages) dbCache!.messages = [];
+      if (!dbCache!.conversations) dbCache!.conversations = [];
       return dbCache!;
     } catch (err) {
       console.error('[DB] Failed to read database, initializing new:', err);

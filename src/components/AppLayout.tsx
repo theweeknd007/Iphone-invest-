@@ -9,9 +9,11 @@ import {
   BadgeDollarSign,
   Headphones,
   ShieldAlert,
+  MessageSquare,
 } from 'lucide-react';
 import { BottomNav } from './BottomNav';
 import { useSession } from '../context/SessionContext';
+import { useChat } from '../context/ChatContext';
 import { RoutePath } from '../types';
 import { AppleLogo } from './AppleLogo';
 import { formatCurrency } from '../data/plans';
@@ -32,6 +34,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   hideNav = false,
 }) => {
   const { currentRoute, navigateTo, profile, signedIn } = useSession();
+  const { totalUnreadCount } = useChat();
 
   const navItems = [
     { to: '/' as RoutePath, label: 'Produtos', icon: LayoutGrid },
@@ -117,6 +120,20 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 Entrar / Criar Conta
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => navigateTo('/chat')}
+              className="relative grid size-9 place-items-center rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-slate-300 transition-colors cursor-pointer"
+              title="Chat e Apoio VIP em Direto"
+            >
+              <MessageSquare className="size-4" />
+              {totalUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 grid size-4 place-items-center rounded-full bg-rose-500 text-[9px] font-bold text-white animate-pulse">
+                  {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
+                </span>
+              )}
+            </button>
 
             <button
               type="button"
@@ -218,14 +235,16 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             >
               Apoio ao Cliente
             </button>
-            <button
-              type="button"
-              onClick={() => navigateTo('/admin')}
-              className="hover:text-foreground hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <ShieldAlert className="size-3" />
-              <span>Painel Admin</span>
-            </button>
+            {profile?.role === 'admin' ? (
+              <button
+                type="button"
+                onClick={() => navigateTo('/admin')}
+                className="hover:text-foreground hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <ShieldAlert className="size-3" />
+                <span>Painel Admin</span>
+              </button>
+            ) : null}
           </div>
         </div>
       </footer>

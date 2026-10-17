@@ -38,8 +38,22 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onBuy }) => {
           </div>
         )}
 
-        {/* Product Image or Fallback Mockup */}
-        {plan.image && !imgError ? (
+        {/* Product Image / Video or Fallback Mockup */}
+        {plan.video || (plan.mediaType === 'video' && plan.image) ? (
+          <div className="relative h-full w-full flex items-center justify-center">
+            <video
+              src={plan.video || plan.image}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="h-full w-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-500 rounded-lg"
+            />
+            <span className="absolute bottom-2 right-2 rounded-md bg-black/75 px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider backdrop-blur-xs">
+              Vídeo Oficial
+            </span>
+          </div>
+        ) : plan.image && !imgError ? (
           <img
             src={plan.image}
             alt={plan.name}

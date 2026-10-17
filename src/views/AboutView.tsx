@@ -1,5 +1,5 @@
 import React from 'react';
-import { Info, Shield, Award, Users } from 'lucide-react';
+import { Shield, Award, Users } from 'lucide-react';
 import { AppLayout } from '../components/AppLayout';
 import { AppleLogo } from '../components/AppleLogo';
 
@@ -19,6 +19,7 @@ export const AboutView: React.FC = () => {
             Plataforma inovadora focada no ecossistema de investimento e rendimento com equipamentos oficiais Apple em Moçambique.
           </p>
         </section>
+
 
         {/* Pillars */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

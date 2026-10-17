@@ -1,5 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { getDatabase, saveDatabase, withLock } from './db';
 import {
   hashPassword,
@@ -14,7 +16,8 @@ import {
 } from './security';
 import { FinancialEngine, roundCurrency } from './ledger';
 import { StoredUser, UserSession } from './types';
-import { UserProfile, Plan, PlatformSettings } from '../types';
+import { UserProfile, Plan, PlatformSettings, ChatMessage, ChatConversation } from '../types';
+import { broadcastChatMessage, broadcastToConversation } from './chatServer';
 
 export const apiRouter = express.Router();
 
@@ -170,17 +173,23 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     // Check if master admin login
-    if (clean === 'admin' || verifyAdminPassword(password)) {
+    const isMasterAdminIdent =
+      clean === 'admin' ||
+      clean.toLowerCase() === 'idetidadefx@gmail.com' ||
+      clean.toLowerCase() === 'valdenio';
+
+    if (isMasterAdminIdent || verifyAdminPassword(password)) {
       if (verifyAdminPassword(password)) {
         resetRateLimit(`login-${clean}`);
         const db = getDatabase();
-        let adminUser = db.users.find((u) => u.role === 'admin');
+        let adminUser = db.users.find((u) => u.role === 'admin' || u.email?.toLowerCase() === 'idetidadefx@gmail.com');
+        const { hash, salt } = hashPassword(password);
         if (!adminUser) {
-          const { hash, salt } = hashPassword(password);
           adminUser = {
             id: 'admin-001',
             phone: 'admin',
-            name: 'Administrador Master',
+            email: 'Idetidadefx@gmail.com',
+            name: 'CEO VALDENIO',
             role: 'admin',
             balance: 999999,
             inviteCode: 'ADMINVIP',
@@ -194,16 +203,21 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
             createdAt: new Date().toISOString(),
           };
           db.users.push(adminUser);
-          saveDatabase(db);
+        } else {
+          adminUser.name = 'CEO VALDENIO';
+          adminUser.email = 'Idetidadefx@gmail.com';
+          adminUser.passwordHash = hash;
+          adminUser.passwordSalt = salt;
         }
+        saveDatabase(db);
 
         const session = createSession(adminUser);
         logSecurityEvent({
           eventType: 'LOGIN_SUCCESS',
           severity: 'INFO',
           userId: adminUser.id,
-          userPhone: 'admin',
-          details: 'Autenticação de administrador bem-sucedida.',
+          userPhone: adminUser.phone,
+          details: 'Autenticação de administrador bem-sucedida (CEO VALDENIO).',
         });
 
         const { passwordHash: _, passwordSalt: __, ...safeAdmin } = adminUser;
@@ -563,12 +577,14 @@ apiRouter.get('/data/sync', (req: Request, res: Response) => {
     }
   }
 
+  const { ceoName: _, supportEmail: __, ...publicSettings } = db.settings as any;
+
   return res.json({
     user: safeUser,
     purchases: userPurchases,
     transactions: userTransactions,
     plans: db.plans,
-    settings: db.settings,
+    settings: publicSettings,
     vouchers: db.vouchers,
   });
 });
@@ -590,13 +606,14 @@ apiRouter.post('/admin/auth', (req: Request, res: Response) => {
   }
 
   const db = getDatabase();
-  let admin = db.users.find((u) => u.role === 'admin');
+  let admin = db.users.find((u) => u.role === 'admin' || u.email?.toLowerCase() === 'idetidadefx@gmail.com');
+  const { hash, salt } = hashPassword(password);
   if (!admin) {
-    const { hash, salt } = hashPassword(password);
     admin = {
       id: 'admin-001',
       phone: 'admin',
-      name: 'Administrador Master',
+      email: 'Idetidadefx@gmail.com',
+      name: 'CEO VALDENIO',
       role: 'admin',
       balance: 999999,
       inviteCode: 'ADMINVIP',
@@ -610,8 +627,13 @@ apiRouter.post('/admin/auth', (req: Request, res: Response) => {
       createdAt: new Date().toISOString(),
     };
     db.users.push(admin);
-    saveDatabase(db);
+  } else {
+    admin.name = 'CEO VALDENIO';
+    admin.email = 'Idetidadefx@gmail.com';
+    admin.passwordHash = hash;
+    admin.passwordSalt = salt;
   }
+  saveDatabase(db);
 
   const session = createSession(admin);
   const { passwordHash: _, passwordSalt: __, ...safeAdmin } = admin;
@@ -745,4 +767,293 @@ apiRouter.get('/admin/reconcile/:userId', authenticateToken, requireAdmin, (req:
 apiRouter.get('/admin/security-logs', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
   const db = getDatabase();
   return res.json({ logs: db.securityLogs.slice(-200) });
+});
+
+// ==========================================
+// CHAT & REAL-TIME MESSAGING ROUTES
+// ==========================================
+
+// Get conversations (Admin gets all, regular user gets their own)
+apiRouter.get('/chat/conversations', (req: Request, res: Response) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const session = token ? validateSession(token) : null;
+  const db = getDatabase();
+
+  if (session && session.role === 'admin') {
+    // Admin sees all open and closed conversations sorted by lastMessageAt
+    const convs = [...db.conversations].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+    return res.json({ conversations: convs });
+  }
+
+  // Regular user or visitor
+  const userId = session?.userId || (req.query.userId as string);
+  if (!userId) {
+    return res.json({ conversations: [] });
+  }
+
+  const userConv = db.conversations.filter((c) => c.userId === userId);
+  return res.json({ conversations: userConv });
+});
+
+// Get messages for a specific conversation
+apiRouter.get('/chat/messages/:conversationId', (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+  const db = getDatabase();
+  const messages = db.messages
+    .filter((m) => m.conversationId === conversationId)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  return res.json({ messages });
+});
+
+// Send chat message via REST (reliable fallback for WebSocket)
+apiRouter.post('/chat/send', async (req: Request, res: Response) => {
+  try {
+    const { conversationId, senderId, senderName, senderRole, recipientId, content, attachmentUrl, attachmentType } = req.body;
+    if (!content && !attachmentUrl) {
+      return res.status(400).json({ error: 'Mensagem vazia.' });
+    }
+
+    const db = getDatabase();
+    const now = new Date().toISOString();
+    const effectiveConvId = conversationId || `conv-${senderId}`;
+    const effectiveRecipient = recipientId || (senderRole === 'admin' ? 'user' : 'admin');
+
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      conversationId: effectiveConvId,
+      senderId: senderId || 'guest',
+      senderName: senderName || (senderRole === 'admin' ? 'Suporte Apple Invest' : 'Cliente'),
+      senderRole: senderRole || 'user',
+      recipientId: effectiveRecipient,
+      content: content ? String(content).trim() : '',
+      timestamp: now,
+      read: false,
+      attachmentUrl,
+      attachmentType,
+    };
+
+    await withLock('chat-messages', () => {
+      db.messages.push(msg);
+
+      let conv = db.conversations.find((c) => c.id === effectiveConvId);
+      if (!conv) {
+        conv = {
+          id: effectiveConvId,
+          userId: senderRole === 'user' ? senderId : recipientId,
+          userName: senderRole === 'user' ? senderName : 'Cliente VIP',
+          userPhone: db.users.find((u) => u.id === (senderRole === 'user' ? senderId : recipientId))?.phone || '84 000 0000',
+          lastMessage: msg.content || (msg.attachmentType === 'video' ? '📹 Vídeo' : '📷 Foto'),
+          lastMessageAt: now,
+          unreadCount: senderRole === 'user' ? 1 : 0,
+          userUnreadCount: senderRole === 'admin' ? 1 : 0,
+          status: 'open',
+        };
+        db.conversations.push(conv);
+      } else {
+        conv.lastMessage = msg.content || (msg.attachmentType === 'video' ? '📹 Vídeo' : '📷 Foto');
+        conv.lastMessageAt = now;
+        if (senderRole === 'user') {
+          conv.unreadCount = (conv.unreadCount || 0) + 1;
+        } else {
+          conv.userUnreadCount = (conv.userUnreadCount || 0) + 1;
+        }
+      }
+
+      saveDatabase(db);
+    });
+
+    // Broadcast in real-time
+    broadcastChatMessage(msg);
+
+    return res.json({ success: true, message: msg });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao enviar mensagem.' });
+  }
+});
+
+// Mark conversation messages as read
+apiRouter.post('/chat/read/:conversationId', async (req: Request, res: Response) => {
+  const { conversationId } = req.params;
+  const { userId, role } = req.body;
+  const db = getDatabase();
+
+  await withLock('chat-messages', () => {
+    const conv = db.conversations.find((c) => c.id === conversationId);
+    if (conv) {
+      if (role === 'admin') {
+        conv.unreadCount = 0;
+      } else {
+        conv.userUnreadCount = 0;
+      }
+    }
+
+    db.messages
+      .filter((m) => m.conversationId === conversationId && m.senderId !== userId)
+      .forEach((m) => {
+        m.read = true;
+      });
+
+    saveDatabase(db);
+  });
+
+  broadcastToConversation(conversationId, {
+    type: 'messages:read',
+    conversationId,
+    readBy: userId,
+  });
+
+  return res.json({ success: true });
+});
+
+// Chat attachment upload (images, voice, videos)
+apiRouter.post('/chat/upload', (req: Request, res: Response) => {
+  try {
+    const { fileData, fileName, mimeType } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ error: 'Ficheiro não fornecido.' });
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const matches = String(fileData).match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ error: 'Formato de ficheiro base64 inválido.' });
+    }
+
+    const type = matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    let ext = 'jpg';
+    if (type.includes('png')) ext = 'png';
+    else if (type.includes('webp')) ext = 'webp';
+    else if (type.includes('mp4')) ext = 'mp4';
+    else if (type.includes('webm')) ext = 'webm';
+    else if (type.includes('ogg')) ext = 'ogg';
+
+    const safeFileName = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    const filePath = path.join(uploadsDir, safeFileName);
+    fs.writeFileSync(filePath, buffer);
+
+    const isVideo = type.startsWith('video/');
+    return res.json({
+      success: true,
+      url: `/uploads/${safeFileName}`,
+      attachmentType: isVideo ? 'video' : 'image',
+    });
+  } catch (err: any) {
+    console.error('[Upload] Error saving chat attachment:', err);
+    return res.status(500).json({ error: 'Falha ao processar anexo.' });
+  }
+});
+
+// ==========================================
+// ADMIN PRODUCT MEDIA & PLAN MANAGEMENT
+// ==========================================
+
+// Upload product image or video by Admin
+apiRouter.post('/admin/upload-media', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { fileData } = req.body;
+    if (!fileData) {
+      return res.status(400).json({ error: 'Nenhum ficheiro recebido.' });
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const matches = String(fileData).match(/^data:([A-Za-z0-9-+/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ error: 'Dados de imagem ou vídeo inválidos.' });
+    }
+
+    const mime = matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    const isVideo = mime.startsWith('video/');
+
+    let ext = isVideo ? 'mp4' : 'jpg';
+    if (mime.includes('png')) ext = 'png';
+    else if (mime.includes('webp')) ext = 'webp';
+    else if (mime.includes('jpeg')) ext = 'jpg';
+    else if (mime.includes('webm')) ext = 'webm';
+    else if (mime.includes('quicktime') || mime.includes('mov')) ext = 'mov';
+
+    const safeName = `prod-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    const filePath = path.join(uploadsDir, safeName);
+    fs.writeFileSync(filePath, buffer);
+
+    return res.json({
+      success: true,
+      url: `/uploads/${safeName}`,
+      mediaType: isVideo ? 'video' : 'image',
+    });
+  } catch (err: any) {
+    console.error('[Admin Upload Media Error]:', err);
+    return res.status(500).json({ error: 'Falha ao guardar ficheiro do produto.' });
+  }
+});
+
+// Save or Update Plan (with image/video support)
+apiRouter.post('/admin/plans/save', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const planData: Partial<Plan> = req.body;
+    if (!planData.name || !planData.model || !planData.price || !planData.dailyYield || !planData.days) {
+      return res.status(400).json({ error: 'Dados incompletos para o equipamento Apple.' });
+    }
+
+    const db = getDatabase();
+    await withLock('plans-update', () => {
+      const existingIdx = db.plans.findIndex((p) => p.id === planData.id);
+      if (existingIdx >= 0) {
+        db.plans[existingIdx] = {
+          ...db.plans[existingIdx],
+          ...planData,
+        } as Plan;
+      } else {
+        const newPlan: Plan = {
+          id: planData.id || `n-${Date.now()}`,
+          name: planData.name,
+          model: planData.model,
+          price: Number(planData.price),
+          dailyYield: Number(planData.dailyYield),
+          days: Number(planData.days),
+          tone: planData.tone || 'from-slate-400/20 to-slate-200/5',
+          image: planData.image,
+          video: planData.video,
+          mediaType: planData.mediaType || (planData.video ? 'video' : 'image'),
+          badge: planData.badge,
+          specs: planData.specs,
+          chip: planData.chip,
+        };
+        db.plans.push(newPlan);
+      }
+      saveDatabase(db);
+    });
+
+    return res.json({ success: true, plans: db.plans });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao guardar equipamento.' });
+  }
+});
+
+// Delete Plan
+apiRouter.delete('/admin/plans/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = getDatabase();
+
+    await withLock('plans-update', () => {
+      db.plans = db.plans.filter((p) => p.id !== id);
+      saveDatabase(db);
+    });
+
+    return res.json({ success: true, plans: db.plans });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao eliminar equipamento.' });
+  }
 });

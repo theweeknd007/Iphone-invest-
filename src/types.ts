@@ -7,9 +7,37 @@ export interface Plan {
   days: number;
   tone: string;
   image?: string;
+  video?: string;
+  mediaType?: 'image' | 'video';
   badge?: string;
   specs?: string;
   chip?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'user' | 'admin' | 'system';
+  recipientId: string;
+  content: string;
+  timestamp: string;
+  read: boolean;
+  attachmentUrl?: string;
+  attachmentType?: 'image' | 'video' | 'file';
+}
+
+export interface ChatConversation {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhone: string;
+  lastMessage?: string;
+  lastMessageAt: string;
+  unreadCount: number;
+  userUnreadCount: number;
+  status: 'open' | 'closed';
 }
 
 export interface Purchase {
@@ -161,5 +189,6 @@ export type RoutePath =
   | '/regras'
   | '/entrar'
   | '/registo'
-  | '/admin';
+  | '/admin'
+  | '/chat';
 

@@ -3,8 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import http from 'http';
 import { apiRouter } from './src/server/routes';
 import { initDatabase } from './src/server/db';
+import { setupChatWebSocket } from './src/server/chatServer';
 
 dotenv.config();
 
@@ -20,6 +22,12 @@ async function startServer() {
   // Initialize secure database on startup
   initDatabase();
 
+  // Ensure uploads directory exists
+  const uploadsPath = path.resolve(__dirname, 'public', 'uploads');
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+  }
+
   // Defensive Security Headers
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -29,9 +37,12 @@ async function startServer() {
     next();
   });
 
-  // Body parser with strict size limits to prevent Denial of Service
-  app.use(express.json({ limit: '1mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  // Body parser with size limits configured for media uploads (up to 30mb for image/video)
+  app.use(express.json({ limit: '30mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '30mb' }));
+
+  // Serve static uploads
+  app.use('/uploads', express.static(uploadsPath));
 
   // Mount API endpoints
   app.use('/api', apiRouter);
@@ -66,7 +77,12 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const httpServer = http.createServer(app);
+
+  // Attach real-time WebSocket chat server
+  setupChatWebSocket(httpServer);
+
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[Fortaleza] Server successfully running at http://0.0.0.0:${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
   });
 }

@@ -20,6 +20,9 @@ import { RulesView } from './views/RulesView';
 import { LoginView } from './views/LoginView';
 import { RegisterView } from './views/RegisterView';
 import { AdminView } from './views/AdminView';
+import { ChatView } from './views/ChatView';
+import { ChatProvider } from './context/ChatContext';
+import { ChatWidget } from './components/ChatWidget';
 
 const MainRouter: React.FC = () => {
   const { currentRoute } = useSession();
@@ -62,6 +65,8 @@ const MainRouter: React.FC = () => {
         return <RegisterView />;
       case '/admin':
         return <AdminView />;
+      case '/chat':
+        return <ChatView />;
       default:
         return <ProductsView />;
     }
@@ -72,6 +77,7 @@ const MainRouter: React.FC = () => {
       <div className="w-full flex justify-center flex-1">
         {renderView()}
       </div>
+      <ChatWidget />
     </div>
   );
 };
@@ -79,20 +85,22 @@ const MainRouter: React.FC = () => {
 export default function App() {
   return (
     <SessionProvider>
-      <Toaster
-        theme="light"
-        position="top-center"
-        richColors
-        toastOptions={{
-          style: {
-            borderRadius: '1rem',
-            border: '1px solid oklch(90.5% 0.007 260)',
-            background: '#ffffff',
-            color: 'oklch(18% 0.018 260)',
-          },
-        }}
-      />
-      <MainRouter />
+      <ChatProvider>
+        <Toaster
+          theme="light"
+          position="top-center"
+          richColors
+          toastOptions={{
+            style: {
+              borderRadius: '1rem',
+              border: '1px solid oklch(90.5% 0.007 260)',
+              background: '#ffffff',
+              color: 'oklch(18% 0.018 260)',
+            },
+          }}
+        />
+        <MainRouter />
+      </ChatProvider>
     </SessionProvider>
   );
 }

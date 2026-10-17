@@ -12,34 +12,61 @@
       "inviteCode": "TEST01",
       "status": "ativo",
       "checkInDays": [],
-      "createdAt": "2026-10-17T14:25:57.776Z"
+      "createdAt": "2026-10-17T14:35:45.358Z"
+    },
+    {
+      "id": "admin-001",
+      "phone": "admin",
+      "name": "CEO VALDENIO",
+      "role": "admin",
+      "balance": 0,
+      "inviteCode": "ADMINVIP",
+      "totalRecharged": 0,
+      "totalWithdrawn": 0,
+      "accumulatedYield": 0,
+      "status": "ativo",
+      "checkInDays": [],
+      "passwordHash": "7d09c1f0a369e13b3f8d9fcc289507d9cf0680fbf819af59e8a8b269a37196eff00fd76fbee028362ff4fea8145d364980cd50cb055c2799f3d10fc6f579ca2c",
+      "passwordSalt": "e022f9ba9c3d28f7788e5ac33bff334c",
+      "createdAt": "2026-10-17T14:41:54.138Z",
+      "email": "Idetidadefx@gmail.com"
     }
   ],
   "purchases": [],
   "transactions": [
     {
-      "id": "tx-adj-1792247157781-ccccdf",
+      "id": "tx-adj-1792248279448-ec7c69",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "type": "ajuste",
+      "amount": 999999,
+      "method": "Ajuste Administrativo (Ajuste Manual pelo Administrador)",
+      "status": "concluido",
+      "createdAt": "2026-10-17T14:44:39.448Z"
+    },
+    {
+      "id": "tx-adj-1792247745365-df7206",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "type": "ajuste",
       "amount": 300,
       "method": "Ajuste Administrativo (Correção de bónus especial de campanha)",
       "status": "concluido",
-      "createdAt": "2026-10-17T14:25:57.781Z"
+      "createdAt": "2026-10-17T14:35:45.366Z"
     },
     {
-      "id": "tx-wth-1792247157780-93a61e",
+      "id": "tx-wth-1792247745363-a22f6a",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "type": "levantamento",
       "amount": 500,
       "method": "M-Pesa (841234567)",
       "status": "falhado",
-      "createdAt": "2026-10-17T14:25:57.780Z",
+      "createdAt": "2026-10-17T14:35:45.363Z",
       "note": "Titular do número não coincide com o registo"
     },
     {
-      "id": "tx-rec-1792247157778-2ae334",
+      "id": "tx-rec-1792247745362-1b2024",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "type": "recarga",
@@ -47,17 +74,17 @@
       "method": "M-Pesa (841234567)",
       "reference": "REF-TEST-999",
       "status": "concluido",
-      "createdAt": "2026-10-17T14:25:57.778Z"
+      "createdAt": "2026-10-17T14:35:45.362Z"
     },
     {
-      "id": "tx-wth-1792247157777-c0fadc",
+      "id": "tx-wth-1792247745360-c59dcc",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "type": "levantamento",
       "amount": 300,
       "method": "M-Pesa (841234567)",
       "status": "pendente",
-      "createdAt": "2026-10-17T14:25:57.777Z"
+      "createdAt": "2026-10-17T14:35:45.360Z"
     },
     {
       "id": "tx-init-500",
@@ -67,7 +94,7 @@
       "amount": 500,
       "method": "M-Pesa (Inicial)",
       "status": "concluido",
-      "createdAt": "2026-10-17T14:25:57.776Z"
+      "createdAt": "2026-10-17T14:35:45.359Z"
     }
   ],
   "plans": [
@@ -202,7 +229,20 @@
   ],
   "adjustmentLogs": [
     {
-      "id": "adj-man-1792247157781-123499",
+      "id": "adj-man-1792248279448-ba42e5",
+      "targetUserId": "admin-001",
+      "targetUserPhone": "admin",
+      "previousBalance": 999999,
+      "newBalance": 0,
+      "amount": 999999,
+      "type": "debito",
+      "reason": "Ajuste Manual pelo Administrador",
+      "adminId": "admin-001",
+      "adminName": "Administrador Master",
+      "createdAt": "2026-10-17T14:44:39.448Z"
+    },
+    {
+      "id": "adj-man-1792247745365-c00fc6",
       "targetUserId": "test-user-01",
       "targetUserPhone": "841234567",
       "previousBalance": 1200,
@@ -212,10 +252,10 @@
       "reason": "Correção de bónus especial de campanha",
       "adminId": "admin-001",
       "adminName": "Admin Master",
-      "createdAt": "2026-10-17T14:25:57.781Z"
+      "createdAt": "2026-10-17T14:35:45.365Z"
     },
     {
-      "id": "adj-ref-1792247157781-a11f5a",
+      "id": "adj-ref-1792247745364-886bd9",
       "targetUserId": "test-user-01",
       "targetUserPhone": "841234567",
       "previousBalance": 700,
@@ -225,10 +265,10 @@
       "reason": "Reembolso por levantamento rejeitado: Titular do número não coincide com o registo",
       "adminId": "admin-001",
       "adminName": "Admin Master",
-      "createdAt": "2026-10-17T14:25:57.781Z"
+      "createdAt": "2026-10-17T14:35:45.365Z"
     },
     {
-      "id": "adj-1792247157779-78c814",
+      "id": "adj-1792247745363-090870",
       "targetUserId": "test-user-01",
       "targetUserPhone": "841234567",
       "previousBalance": 200,
@@ -238,22 +278,22 @@
       "reason": "Aprovação de recarga de MT 1000 (M-Pesa (841234567))",
       "adminId": "admin-001",
       "adminName": "Admin Master",
-      "createdAt": "2026-10-17T14:25:57.779Z"
+      "createdAt": "2026-10-17T14:35:45.363Z"
     }
   ],
   "securityLogs": [
     {
-      "id": "sec-1792247157778-0bd1e5cc",
-      "timestamp": "2026-10-17T14:25:57.778Z",
+      "id": "sec-1792247745361-7955075e",
+      "timestamp": "2026-10-17T14:35:45.361Z",
       "eventType": "WITHDRAWAL_APPROVED",
       "severity": "INFO",
       "userId": "test-user-01",
       "userPhone": "841234567",
-      "details": "Levantamento #tx-wth-1792247157777-c0fadc de MT 300 solicitado via M-Pesa. Saldo debitado de MT 500 para MT 200."
+      "details": "Levantamento #tx-wth-1792247745360-c59dcc de MT 300 solicitado via M-Pesa. Saldo debitado de MT 500 para MT 200."
     },
     {
-      "id": "sec-1792247157779-3d9b5a24",
-      "timestamp": "2026-10-17T14:25:57.779Z",
+      "id": "sec-1792247745362-201415c9",
+      "timestamp": "2026-10-17T14:35:45.362Z",
       "eventType": "RECHARGE_APPROVED",
       "severity": "INFO",
       "userId": "test-user-01",
@@ -261,43 +301,96 @@
       "details": "Pedido de recarga de MT 1000 criado via M-Pesa. Aguarda confirmação do administrador."
     },
     {
-      "id": "sec-1792247157779-28413bbb",
-      "timestamp": "2026-10-17T14:25:57.779Z",
+      "id": "sec-1792247745363-a286881f",
+      "timestamp": "2026-10-17T14:35:45.363Z",
       "eventType": "RECHARGE_APPROVED",
       "severity": "INFO",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "operatorId": "admin-001",
-      "details": "Recarga #tx-rec-1792247157778-2ae334 de MT 1000 aprovada pelo admin Admin Master. Saldo atualizado de MT 200 para MT 1200."
+      "details": "Recarga #tx-rec-1792247745362-1b2024 de MT 1000 aprovada pelo admin Admin Master. Saldo atualizado de MT 200 para MT 1200."
     },
     {
-      "id": "sec-1792247157780-1be3f5b0",
-      "timestamp": "2026-10-17T14:25:57.780Z",
+      "id": "sec-1792247745364-686dc4b0",
+      "timestamp": "2026-10-17T14:35:45.364Z",
       "eventType": "WITHDRAWAL_APPROVED",
       "severity": "INFO",
       "userId": "test-user-01",
       "userPhone": "841234567",
-      "details": "Levantamento #tx-wth-1792247157780-93a61e de MT 500 solicitado via M-Pesa. Saldo debitado de MT 1200 para MT 700."
+      "details": "Levantamento #tx-wth-1792247745363-a22f6a de MT 500 solicitado via M-Pesa. Saldo debitado de MT 1200 para MT 700."
     },
     {
-      "id": "sec-1792247157781-d5f3f5fd",
-      "timestamp": "2026-10-17T14:25:57.781Z",
+      "id": "sec-1792247745365-32fbf31f",
+      "timestamp": "2026-10-17T14:35:45.365Z",
       "eventType": "WITHDRAWAL_REJECTED",
       "severity": "WARNING",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "operatorId": "admin-001",
-      "details": "Levantamento #tx-wth-1792247157780-93a61e de MT 500 rejeitado pelo admin Admin Master. Fundos reembolsados ao utilizador. Motivo: Titular do número não coincide com o registo"
+      "details": "Levantamento #tx-wth-1792247745363-a22f6a de MT 500 rejeitado pelo admin Admin Master. Fundos reembolsados ao utilizador. Motivo: Titular do número não coincide com o registo"
     },
     {
-      "id": "sec-1792247157781-81733368",
-      "timestamp": "2026-10-17T14:25:57.781Z",
+      "id": "sec-1792247745366-5c1cd40a",
+      "timestamp": "2026-10-17T14:35:45.366Z",
       "eventType": "BALANCE_ADJUSTED",
       "severity": "WARNING",
       "userId": "test-user-01",
       "userPhone": "841234567",
       "operatorId": "admin-001",
       "details": "Saldo do utilizador 841234567 ajustado de MT 1200 para MT 1500 por Admin Master. Motivo: Correção de bónus especial de campanha"
+    },
+    {
+      "id": "sec-1792248234873-2bbaf882",
+      "timestamp": "2026-10-17T14:43:54.873Z",
+      "eventType": "UNAUTHORIZED_ACCESS_ATTEMPT",
+      "severity": "WARNING",
+      "details": "Tentativa de autenticação com palavra-passe mestre de admin incorreta."
+    },
+    {
+      "id": "sec-1792248279449-273af199",
+      "timestamp": "2026-10-17T14:44:39.449Z",
+      "eventType": "BALANCE_ADJUSTED",
+      "severity": "WARNING",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "operatorId": "admin-001",
+      "details": "Saldo do utilizador admin ajustado de MT 999999 para MT 0 por Administrador Master. Motivo: Ajuste Manual pelo Administrador"
+    },
+    {
+      "id": "sec-1792248767035-d585aa83",
+      "timestamp": "2026-10-17T14:52:47.035Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Autenticação de administrador bem-sucedida (CEO VALDENIO)."
+    },
+    {
+      "id": "sec-1792248771619-35b9acd4",
+      "timestamp": "2026-10-17T14:52:51.619Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Autenticação de administrador bem-sucedida (CEO VALDENIO)."
+    },
+    {
+      "id": "sec-1792249192187-db212e95",
+      "timestamp": "2026-10-17T14:59:52.187Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Autenticação de administrador bem-sucedida (CEO VALDENIO)."
+    },
+    {
+      "id": "sec-1792249232292-f03e5dc0",
+      "timestamp": "2026-10-17T15:00:32.292Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Autenticação de administrador bem-sucedida (CEO VALDENIO)."
     }
   ],
   "settings": {
@@ -324,7 +417,18 @@
     "emolaOfficialNumber": "86 900 1234",
     "emolaOfficialName": "APPLE INVEST MOZ",
     "withdrawalsEnabled": true,
-    "rechargesEnabled": true
+    "rechargesEnabled": true,
+    "ceoName": "VALDENIO",
+    "supportEmail": "Idetidadefx@gmail.com"
   },
-  "sessions": []
+  "sessions": [
+    {
+      "token": "0fabc111e0c4aaa2171677fe75ad1cc8d3663c445d47e4067d4eb3d0bc7973ef",
+      "userId": "admin-001",
+      "phone": "admin",
+      "role": "admin",
+      "createdAt": "2026-10-17T15:00:32.292Z",
+      "expiresAt": "2026-10-24T15:00:32.292Z"
+    }
+  ]
 }
