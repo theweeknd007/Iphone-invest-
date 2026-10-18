@@ -13,6 +13,90 @@ interface ClientMetadata {
 
 const activeClients = new Map<WebSocket, ClientMetadata>();
 
+// Verified FAQ Knowledge Base for Automated Assistance
+export function getAutomatedFaqAnswer(question: string, settings: any): string | null {
+  const q = question.toLowerCase().trim();
+
+  // 1. Yields / Rendimentos / 5% / iPhone / Lucro
+  if (
+    q.includes('rendimento') ||
+    q.includes('rendimentos') ||
+    q.includes('5%') ||
+    q.includes('como funciona') ||
+    q.includes('lucro') ||
+    q.includes('diario') ||
+    q.includes('diário') ||
+    q.includes('ciclo')
+  ) {
+    return `📱 *Rendimentos Diários APPLE INVEST:*\n• Todos os equipamentos Apple (do iPhone X ao 18 Pro Max) rendem exatamente *5% ao dia* sobre o valor do equipamento.\n• O ciclo total é de *60 dias*.\n• Os rendimentos acumulam a cada 24 horas diretamente no seu saldo disponível.\n• Pode levantar ou reinvestir os seus rendimentos a qualquer momento!`;
+  }
+
+  // 2. Recharge / Recarga / Depósito / M-Pesa / e-Mola / Pagar
+  if (
+    q.includes('recarga') ||
+    q.includes('recarregar') ||
+    q.includes('deposito') ||
+    q.includes('depósito') ||
+    q.includes('m-pesa') ||
+    q.includes('mpesa') ||
+    q.includes('e-mola') ||
+    q.includes('emola') ||
+    q.includes('pagar') ||
+    q.includes('como depositar')
+  ) {
+    const mpesaNum = settings.mpesaOfficialNumber || '84 900 1234';
+    const mpesaName = settings.mpesaOfficialName || 'APPLE INVEST MOZ';
+    const emolaNum = settings.emolaOfficialNumber || '86 900 1234';
+    const minRec = settings.minRecharge || 100;
+    return `💳 *Como Fazer uma Recarga:*\n1. Vá ao menu *Recarregar* no app.\n2. Escolha M-Pesa ou e-Mola (Valor Mínimo: *MT ${minRec}*).\n3. Transfira para a conta oficial:\n   • *M-Pesa:* ${mpesaNum} (${mpesaName})\n   • *e-Mola:* ${emolaNum} (${mpesaName})\n4. Copie o código ou referência do SMS de confirmação da operadora e insira no formulário.\n5. O seu saldo é creditado em poucos minutos após verificação!`;
+  }
+
+  // 3. Withdraw / Levantar / Levantamento / Saque / Taxa
+  if (
+    q.includes('levantar') ||
+    q.includes('levantamento') ||
+    q.includes('saque') ||
+    q.includes('taxa') ||
+    q.includes('minimo') ||
+    q.includes('mínimo') ||
+    q.includes('tempo')
+  ) {
+    const minWith = settings.minWithdrawal || 100;
+    const fee = settings.withdrawalFeePercent || 20;
+    return `💸 *Regras de Levantamento:*\n• *Valor Mínimo:* MT ${minWith}\n• *Taxa de Processamento:* ${fee}%\n• *Método:* Direto na sua conta M-Pesa ou e-Mola cadastrada no menu 'Carteira'\n• *Prazo:* Os pedidos são processados em 1 a 24 horas úteis.\n\nCertifique-se de configurar a sua carteira móvel antes de solicitar o levantamento.`;
+  }
+
+  // 4. Team / Equipa / Convite / Afiliados / Bónus / Amigos
+  if (
+    q.includes('equipa') ||
+    q.includes('convid') ||
+    q.includes('amigo') ||
+    q.includes('afiliado') ||
+    q.includes('comissao') ||
+    q.includes('comissão') ||
+    q.includes('29%')
+  ) {
+    const l1 = settings.level1Commission || 29;
+    const l2 = settings.level2Commission || 2;
+    const l3 = settings.level3Commission || 1;
+    return `👥 *Comissões da Equipa APPLE INVEST:*\nGanha comissões generosas sempre que os seus convidados recarregam:\n• *Nível 1 (Convite Direto):* ${l1}%\n• *Nível 2 (Convidados dos seus amigos):* ${l2}%\n• *Nível 3:* ${l3}%\n\nAceda ao menu *Equipa* para copiar o seu link e código de convite exclusivo!`;
+  }
+
+  // 5. Humano / Atendente / Suporte
+  if (
+    q.includes('humano') ||
+    q.includes('atendente') ||
+    q.includes('pessoa') ||
+    q.includes('suporte') ||
+    q.includes('urgente')
+  ) {
+    const wa = settings.supportWhatsapp || '+258 84 000 0000';
+    return `👨‍💼 *Apoio Humano em Direto:*\nA equipa de suporte e administração foi notificada da sua mensagem e vai responder diretamente aqui no chat em instantes!\n\nSe preferir atendimento imediato via WhatsApp oficial:\n📲 ${wa}`;
+  }
+
+  return null;
+}
+
 export function setupChatWebSocket(server: HttpServer): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws/chat' });
 
@@ -39,7 +123,7 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
 
             const userId = sessionUser?.id || payload.userId || `guest-${connectionId.slice(-6)}`;
             const role = (sessionUser?.role === 'admin' || payload.role === 'admin') ? 'admin' : 'user';
-            const userName = sessionUser?.name || (role === 'admin' ? 'Suporte Apple Invest' : (payload.userName || `Cliente #${userId.slice(-4)}`));
+            const userName = sessionUser?.name || (role === 'admin' ? 'Administrador' : (payload.userName || `Cliente #${userId.slice(-4)}`));
 
             activeClients.set(ws, {
               userId,
@@ -74,15 +158,27 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
             const now = new Date().toISOString();
             const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-            // Determine effective conversation
+            // Determine effective conversation and recipient
             let convId = conversationId;
             let effectiveRecipient = recipientId;
 
             if (client.role === 'user') {
               convId = `conv-${client.userId}`;
               effectiveRecipient = 'admin';
-            } else if (!convId) {
-              convId = `conv-${recipientId}`;
+            } else {
+              // Admin sending message
+              if (!convId && effectiveRecipient && effectiveRecipient !== 'admin' && effectiveRecipient !== 'user') {
+                convId = `conv-${effectiveRecipient}`;
+              } else if (convId) {
+                const targetUid = convId.replace('conv-', '');
+                if (!effectiveRecipient || effectiveRecipient === 'user') {
+                  effectiveRecipient = targetUid;
+                }
+              }
+            }
+
+            if (!convId) {
+              convId = `conv-${client.userId}`;
             }
 
             const chatMsg: ChatMessage = {
@@ -99,6 +195,9 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
               attachmentType,
             };
 
+            const targetUserId = client.role === 'user' ? client.userId : effectiveRecipient;
+            const targetUser = db.users.find((u) => u.id === targetUserId);
+
             await withLock('chat-messages', () => {
               db.messages.push(chatMsg);
 
@@ -107,9 +206,9 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
               if (!conv) {
                 conv = {
                   id: convId,
-                  userId: client.role === 'user' ? client.userId : recipientId,
-                  userName: client.role === 'user' ? client.userName : (db.users.find(u => u.id === recipientId)?.name || 'Cliente VIP'),
-                  userPhone: db.users.find(u => u.id === (client.role === 'user' ? client.userId : recipientId))?.phone || '84 000 0000',
+                  userId: targetUserId,
+                  userName: client.role === 'user' ? client.userName : (targetUser?.name || 'Cliente VIP'),
+                  userPhone: targetUser?.phone || (client.role === 'user' ? client.userName : '84 000 0000'),
                   lastMessage: chatMsg.content || (chatMsg.attachmentType === 'video' ? '📹 Vídeo' : '📷 Foto'),
                   lastMessageAt: now,
                   unreadCount: client.role === 'user' ? 1 : 0,
@@ -120,6 +219,9 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
               } else {
                 conv.lastMessage = chatMsg.content || (chatMsg.attachmentType === 'video' ? '📹 Vídeo' : '📷 Foto');
                 conv.lastMessageAt = now;
+                if (targetUser && !conv.userPhone) {
+                  conv.userPhone = targetUser.phone;
+                }
                 if (client.role === 'user') {
                   conv.unreadCount = (conv.unreadCount || 0) + 1;
                 } else {
@@ -130,8 +232,44 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
               saveDatabase(db);
             });
 
-            // Broadcast message in real-time to active WebSocket clients
+            // Broadcast user/admin message in real-time
             broadcastChatMessage(chatMsg);
+
+            // Automated FAQ response if client is a regular user and message has a recognized query
+            if (client.role === 'user' && chatMsg.content) {
+              const faqAnswer = getAutomatedFaqAnswer(chatMsg.content, db.settings);
+              if (faqAnswer) {
+                setTimeout(async () => {
+                  const autoMsgId = `auto-msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                  const autoNow = new Date().toISOString();
+                  const autoMsg: ChatMessage = {
+                    id: autoMsgId,
+                    conversationId: convId,
+                    senderId: 'admin-001',
+                    senderName: 'Suporte Oficial Apple Invest',
+                    senderRole: 'admin',
+                    recipientId: client.userId,
+                    content: faqAnswer,
+                    timestamp: autoNow,
+                    read: false,
+                  };
+
+                  await withLock('chat-messages', () => {
+                    const freshDb = getDatabase();
+                    freshDb.messages.push(autoMsg);
+                    const freshConv = freshDb.conversations.find((c) => c.id === convId);
+                    if (freshConv) {
+                      freshConv.lastMessage = autoMsg.content;
+                      freshConv.lastMessageAt = autoNow;
+                      freshConv.userUnreadCount = (freshConv.userUnreadCount || 0) + 1;
+                    }
+                    saveDatabase(freshDb);
+                  });
+
+                  broadcastChatMessage(autoMsg);
+                }, 750);
+              }
+            }
             break;
           }
 
@@ -218,12 +356,12 @@ export function broadcastChatMessage(msg: ChatMessage) {
       // 1. All admins
       // 2. The sender
       // 3. The recipient user
-      if (
-        client.role === 'admin' ||
-        client.userId === msg.senderId ||
-        client.userId === msg.recipientId ||
-        msg.conversationId === `conv-${client.userId}`
-      ) {
+      // 4. Any client belonging to this conversation
+      const isRecipient = client.userId === msg.recipientId;
+      const isSender = client.userId === msg.senderId;
+      const isConvOwner = msg.conversationId === `conv-${client.userId}`;
+
+      if (client.role === 'admin' || isSender || isRecipient || isConvOwner) {
         try {
           ws.send(payload);
         } catch {

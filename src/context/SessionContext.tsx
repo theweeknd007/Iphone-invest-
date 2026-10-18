@@ -533,7 +533,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser && fbUser.email) {
-        const isAdmin = fbUser.email === 'inaciosmithndava@gmail.com';
+        const cleanEmail = fbUser.email.toLowerCase();
+        const isAdmin = cleanEmail === 'inaciosmithndava@gmail.com' || cleanEmail === 'idetidadefx@gmail.com';
         if (isAdmin) {
           setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
         }
@@ -562,7 +563,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return false;
       }
 
-      const isAdmin = fbUser.email === 'inaciosmithndava@gmail.com';
+      const cleanEmail = fbUser.email.toLowerCase();
+      const isAdmin = cleanEmail === 'inaciosmithndava@gmail.com' || cleanEmail === 'idetidadefx@gmail.com';
       if (isAdmin) {
         await setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
       }
@@ -781,6 +783,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
 
     setPurchases((prev) => [newPurchase, ...prev]);
+    createFirestorePurchase(newPurchase).catch((err) => console.warn('Firestore purchase sync:', err));
 
     toast.success('Equipamento adquirido!', {
       description: `${plan.name} (${plan.model}) já está activo a gerar MT ${plan.dailyYield}/dia.`,
@@ -831,6 +834,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setTransactions((prev) => [tx, ...prev]);
+    createFirestoreTransaction(tx).catch((err) => console.warn('Firestore recharge tx sync:', err));
 
     toast.success('Pedido de recarga registado com sucesso!', {
       description: `MT ${amount.toLocaleString('pt-PT')} via ${method}. O saldo será creditado após validação pela administração.`,
@@ -880,6 +884,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setTransactions((prev) => [tx, ...prev]);
+    createFirestoreTransaction(tx).catch((err) => console.warn('Firestore withdrawal tx sync:', err));
 
     // Deduct real balance while withdrawal is pending approval
     setProfile((prev) => ({
@@ -1156,6 +1161,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       syncWithServer();
     });
 
+    const targetTx = transactions.find((t) => t.id === txId);
+    if (targetTx) {
+      createFirestoreTransaction({ ...targetTx, status: 'concluido' }).catch(() => {});
+    }
+
     setTransactions((prev) =>
       prev.map((t) => (t.id === txId ? { ...t, status: 'concluido' } : t))
     );
@@ -1330,6 +1340,15 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
 
+    if (targetUser) {
+      upsertFirestoreUserProfile({
+        ...targetUser,
+        balance: newBalance,
+        totalRecharged: (targetUser.totalRecharged || 0) + targetTx.amount,
+      }).catch(() => {});
+    }
+    createFirestoreTransaction({ ...targetTx, status: 'concluido' }).catch(() => {});
+
     setTransactions((prev) =>
       prev.map((t) => (t.id === txId ? { ...t, status: 'concluido' } : t))
     );
@@ -1420,6 +1439,11 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       status: 'concluido',
       createdAt: new Date().toISOString(),
     };
+    if (target) {
+      upsertFirestoreUserProfile({ ...target, balance: newBalance }).catch(() => {});
+    }
+    createFirestoreTransaction(tx).catch(() => {});
+
     setTransactions((prev) => [tx, ...prev]);
 
     toast.success(`Saldo atualizado com sucesso! (Anterior: MT ${prevBalance} → Novo: MT ${newBalance})`);

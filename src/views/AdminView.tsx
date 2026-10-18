@@ -42,6 +42,7 @@ import {
   Upload,
   Paperclip,
   Send,
+  Headphones,
 } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { useChat } from '../context/ChatContext';
@@ -105,6 +106,8 @@ export const AdminView: React.FC = () => {
     adminLogin,
     adminLogout,
   } = useSession();
+
+  const { conversations, totalUnreadCount, startConversationWithUser } = useChat();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [adminPassword, setAdminPassword] = useState('');

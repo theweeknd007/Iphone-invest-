@@ -125,7 +125,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
 
   const handleRecoveryConfirm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (recoveryPin !== generatedDemoPin && recoveryPin !== '123456' && recoveryPin !== '2026') {
+    if (!generatedDemoPin || recoveryPin.trim() !== generatedDemoPin.trim()) {
       toast.error('Código de verificação incorreto.');
       return;
     }

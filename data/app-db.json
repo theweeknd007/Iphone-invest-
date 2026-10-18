@@ -17,7 +17,7 @@
     {
       "id": "admin-001",
       "phone": "admin",
-      "name": "CEO VALDENIO",
+      "name": "Administrador",
       "role": "admin",
       "balance": 0,
       "inviteCode": "ADMINVIP",
@@ -418,7 +418,7 @@
     "emolaOfficialName": "APPLE INVEST MOZ",
     "withdrawalsEnabled": true,
     "rechargesEnabled": true,
-    "ceoName": "VALDENIO",
+    "ceoName": "Administrador",
     "supportEmail": "Idetidadefx@gmail.com"
   },
   "sessions": [
@@ -429,6 +429,34 @@
       "role": "admin",
       "createdAt": "2026-10-17T15:00:32.292Z",
       "expiresAt": "2026-10-24T15:00:32.292Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1792363848590-uqud7",
+      "conversationId": "conv-visitor-guest",
+      "senderId": "visitor-guest",
+      "senderName": "Cliente",
+      "senderRole": "user",
+      "recipientId": "admin",
+      "content": "",
+      "timestamp": "2026-10-18T22:50:48.590Z",
+      "read": false,
+      "attachmentUrl": "/uploads/chat-1792363848368-ntoi.png",
+      "attachmentType": "image"
+    }
+  ],
+  "conversations": [
+    {
+      "id": "conv-visitor-guest",
+      "userId": "visitor-guest",
+      "userName": "Cliente",
+      "userPhone": "Cliente",
+      "lastMessage": "📷 Foto",
+      "lastMessageAt": "2026-10-18T22:50:48.590Z",
+      "unreadCount": 1,
+      "userUnreadCount": 0,
+      "status": "open"
     }
   ]
 }

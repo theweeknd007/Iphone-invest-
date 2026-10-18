@@ -20,6 +20,9 @@ interface ChatContextType {
   loadMessagesForConversation: (convId: string) => Promise<void>;
   isChatOpen: boolean;
   setIsChatOpen: (open: boolean) => void;
+  startConversationWithUser: (userId: string, userName?: string) => Promise<void>;
+  soundEnabled: boolean;
+  toggleSound: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -51,7 +54,7 @@ function playChime() {
 }
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { profile, signedIn, isAdminAuth } = useSession();
+  const { profile, isAdminAuth } = useSession();
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -60,34 +63,50 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isPeerOnline, setIsPeerOnline] = useState<boolean>(false);
   const [peerTyping, setPeerTyping] = useState<boolean>(false);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('apple_invest_chat_sound') !== 'false';
+  });
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<any>(null);
   const typingTimeoutRef = useRef<any>(null);
+  const pollingIntervalRef = useRef<any>(null);
 
-  // Derive current effective user ID
-  const effectiveUserId = profile?.id || 'visitor-guest';
+  // Derive current effective user ID and role
   const effectiveRole: 'admin' | 'user' = (profile?.role === 'admin' || isAdminAuth) ? 'admin' : 'user';
+  const effectiveUserId = profile?.id || (effectiveRole === 'admin' ? 'admin-001' : 'visitor-guest');
+  const effectiveUserName = profile?.name || (effectiveRole === 'admin' ? 'Administrador' : 'Cliente');
+
+  const toggleSound = () => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('apple_invest_chat_sound', String(next));
+      return next;
+    });
+  };
 
   // Total unread messages count
   const totalUnreadCount = conversations.reduce((acc, c) => {
     return acc + (effectiveRole === 'admin' ? (c.unreadCount || 0) : (c.userUnreadCount || 0));
   }, 0);
 
-  // Fetch initial conversations list
+  // Set default active conversation ID on mount or role change
+  useEffect(() => {
+    if (effectiveRole === 'user') {
+      const defaultUserConv = `conv-${effectiveUserId}`;
+      setActiveConversationId(defaultUserConv);
+    }
+  }, [effectiveRole, effectiveUserId]);
+
+  // Fetch conversations list
   const refreshConversations = useCallback(async () => {
     try {
-      const query = effectiveRole === 'admin' ? '' : `?userId=${effectiveUserId}`;
+      const query = effectiveRole === 'admin' ? '?role=admin' : `?userId=${effectiveUserId}`;
       const res = await apiRequest<{ conversations: ChatConversation[] }>(`/chat/conversations${query}`);
       if (res.data?.conversations) {
         setConversations(res.data.conversations);
-        // Default active conversation
-        if (!activeConversationId && res.data.conversations.length > 0) {
-          if (effectiveRole === 'admin') {
-            setActiveConversationId(res.data.conversations[0].id);
-          } else {
-            setActiveConversationId(`conv-${effectiveUserId}`);
-          }
+        if (effectiveRole === 'admin' && !activeConversationId && res.data.conversations.length > 0) {
+          setActiveConversationId(res.data.conversations[0].id);
         }
       }
     } catch {
@@ -101,7 +120,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await apiRequest<{ messages: ChatMessage[] }>(`/chat/messages/${convId}`);
       if (res.data?.messages) {
-        setMessages(res.data.messages);
+        setMessages((prev) => {
+          // If server returned messages, use them
+          if (res.data!.messages.length > 0) {
+            return res.data!.messages;
+          }
+          // If server returned empty and user has optimistic messages in progress, keep optimistic
+          return prev.filter((m) => m.conversationId === convId);
+        });
       }
     } catch {
       // Ignore
@@ -138,6 +164,28 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [effectiveUserId, effectiveRole]);
 
+  // Start a conversation with a specific user (admin action)
+  const startConversationWithUser = async (userId: string, userName?: string) => {
+    try {
+      const res = await apiRequest<{ success: boolean; conversation: ChatConversation }>('/chat/start', {
+        method: 'POST',
+        body: JSON.stringify({ userId, userName }),
+      });
+
+      if (res.data?.conversation) {
+        const conv = res.data.conversation;
+        setConversations((prev) => {
+          if (prev.some((c) => c.id === conv.id)) return prev;
+          return [conv, ...prev];
+        });
+        setActiveConversationId(conv.id);
+        loadMessagesForConversation(conv.id);
+      }
+    } catch {
+      setActiveConversationId(`conv-${userId}`);
+    }
+  };
+
   // Setup WebSocket connection
   useEffect(() => {
     let unmounted = false;
@@ -160,7 +208,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             token,
             userId: effectiveUserId,
             role: effectiveRole,
-            userName: profile?.name || (effectiveRole === 'admin' ? 'Suporte Apple Invest' : 'Cliente'),
+            userName: effectiveUserName,
           }));
         };
 
@@ -171,13 +219,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (data.type === 'message:new' && data.message) {
               const newMsg: ChatMessage = data.message;
               setMessages((prev) => {
-                if (prev.some((m) => m.id === newMsg.id)) return prev;
+                const idx = prev.findIndex((m) => m.id === newMsg.id);
+                if (idx >= 0) return prev;
                 return [...prev, newMsg];
               });
 
               // Play chime and trigger sonner toast if from someone else
               if (newMsg.senderId !== effectiveUserId) {
-                playChime();
+                if (soundEnabled) {
+                  playChime();
+                }
                 toast.info(`Nova mensagem de ${newMsg.senderName}`, {
                   description: newMsg.content || (newMsg.attachmentType === 'video' ? 'Enviou um vídeo' : 'Enviou uma imagem'),
                   action: {
@@ -202,7 +253,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     : prev[existingIdx].userUnreadCount,
                 } : {
                   id: newMsg.conversationId,
-                  userId: newMsg.senderRole === 'user' ? newMsg.senderId : 'guest',
+                  userId: newMsg.senderRole === 'user' ? newMsg.senderId : (newMsg.recipientId || 'guest'),
                   userName: newMsg.senderRole === 'user' ? newMsg.senderName : 'Cliente VIP',
                   userPhone: '84 000 0000',
                   lastMessage: newMsg.content || (newMsg.attachmentType === 'video' ? '📹 Vídeo' : '📷 Foto'),
@@ -244,7 +295,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ws.onclose = () => {
           if (unmounted) return;
           setIsConnected(false);
-          // Auto reconnect after 3s
           reconnectTimeoutRef.current = setTimeout(connectWs, 3000);
         };
 
@@ -259,15 +309,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     connectWs();
     refreshConversations();
 
+    // Background polling fallback (guarantees real-time updates every 3s in all environments)
+    pollingIntervalRef.current = setInterval(() => {
+      refreshConversations();
+      const target = activeConversationId || (effectiveRole === 'user' ? `conv-${effectiveUserId}` : '');
+      if (target) {
+        apiRequest<{ messages: ChatMessage[] }>(`/chat/messages/${target}`).then((res) => {
+          if (res.data?.messages && res.data.messages.length > 0) {
+            setMessages((prev) => {
+              if (JSON.stringify(prev) !== JSON.stringify(res.data!.messages)) {
+                return res.data!.messages;
+              }
+              return prev;
+            });
+          }
+        }).catch(() => {});
+      }
+    }, 3000);
+
     return () => {
       unmounted = true;
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       if (socketRef.current) {
         socketRef.current.close();
       }
     };
-  }, [effectiveUserId, effectiveRole, profile?.name, refreshConversations, activeConversationId]);
+  }, [effectiveUserId, effectiveRole, effectiveUserName, refreshConversations, activeConversationId, soundEnabled]);
 
   // Load conversation messages whenever active conversation changes
   useEffect(() => {
@@ -290,7 +359,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Send message
+  // Send message with optimistic update
   const sendMessage = async (
     content: string,
     attachmentUrl?: string,
@@ -298,10 +367,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<boolean> => {
     if (!content.trim() && !attachmentUrl) return false;
 
-    const targetConvId = activeConversationId || `conv-${effectiveUserId}`;
-    const targetRecipient = effectiveRole === 'admin' ? 'user' : 'admin';
+    const targetConvId = activeConversationId || (effectiveRole === 'user' ? `conv-${effectiveUserId}` : '');
+    if (!targetConvId) return false;
 
-    // 1. Try WebSocket first
+    let targetRecipient = 'admin';
+    if (effectiveRole === 'admin') {
+      const conv = conversations.find((c) => c.id === targetConvId);
+      targetRecipient = conv?.userId || targetConvId.replace('conv-', '');
+    }
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      conversationId: targetConvId,
+      senderId: effectiveUserId,
+      senderName: effectiveUserName,
+      senderRole: effectiveRole,
+      recipientId: targetRecipient,
+      content: content.trim(),
+      timestamp: new Date().toISOString(),
+      read: false,
+      attachmentUrl,
+      attachmentType,
+    };
+
+    // Optimistic UI update
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // 1. WebSocket attempt
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
         type: 'send_message',
@@ -321,7 +414,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({
           conversationId: targetConvId,
           senderId: effectiveUserId,
-          senderName: profile?.name || (effectiveRole === 'admin' ? 'Suporte Apple Invest' : 'Cliente'),
+          senderName: effectiveUserName,
           senderRole: effectiveRole,
           recipientId: targetRecipient,
           content: content.trim(),
@@ -331,7 +424,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (res.data?.success && res.data.message) {
-        setMessages((prev) => [...prev, res.data!.message]);
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data!.message : m)));
         return true;
       }
       return false;
@@ -396,6 +489,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loadMessagesForConversation,
         isChatOpen,
         setIsChatOpen,
+        startConversationWithUser,
+        soundEnabled,
+        toggleSound,
       }}
     >
       {children}
