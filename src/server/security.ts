@@ -2,7 +2,10 @@ import crypto from 'crypto';
 import { getDatabase, saveDatabase } from './db';
 import { SecurityAuditLog, StoredUser, UserSession } from './types';
 
-const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'Valdenio258$';
+const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD;
+if (!ADMIN_MASTER_PASSWORD) {
+  throw new Error('ADMIN_MASTER_PASSWORD environment variable is required. Set it before starting the server.');
+}
 const SESSION_DURATION_HOURS = 24 * 7; // 7 days
 
 // Brute-force rate limiting in memory
@@ -72,15 +75,11 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
  */
 export function verifyAdminPassword(candidate: string): boolean {
   try {
-    const validPasswords = Array.from(new Set([ADMIN_MASTER_PASSWORD, 'Valdenio258$', 'admin1234']));
-    for (const valid of validPasswords) {
-      const expectedBuf = Buffer.from(valid);
-      const candidateBuf = Buffer.from(candidate);
-      if (expectedBuf.length === candidateBuf.length && crypto.timingSafeEqual(expectedBuf, candidateBuf)) {
-        return true;
-      }
-    }
-    return false;
+    if (!ADMIN_MASTER_PASSWORD || !candidate) return false;
+    const expectedBuf = Buffer.from(ADMIN_MASTER_PASSWORD);
+    const candidateBuf = Buffer.from(candidate);
+    if (expectedBuf.length !== candidateBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, candidateBuf);
   } catch {
     return false;
   }
