@@ -3,6 +3,14 @@ import { UserProfile, Purchase, Transaction, Plan, RoutePath, PlatformSettings, 
 import { PLANS, formatCurrency } from '../data/plans';
 import { toast } from 'sonner';
 import { apiRequest, setStoredToken, getStoredToken } from '../api/client';
+import { auth, googleProvider, signInWithPopup, fbSignOut, onAuthStateChanged } from '../firebase/config';
+import {
+  getFirestoreUserProfile,
+  upsertFirestoreUserProfile,
+  setupAdminDoc,
+  createFirestoreTransaction,
+  createFirestorePurchase,
+} from '../firebase/firestoreService';
 
 interface SessionContextType {
   profile: UserProfile | null;
@@ -19,6 +27,7 @@ interface SessionContextType {
   signIn: (phoneOrEmail: string, password?: string) => boolean;
   signUp: (phone: string, password: string, inviteCode?: string, email?: string, name?: string) => boolean;
   signInWithGoogle: (googleUser: { email: string; name?: string; picture?: string }) => boolean;
+  signInWithFirebaseGoogle: () => Promise<boolean>;
   resetPassword: (identifier: string, newPassword: string, code: string) => boolean;
   signOut: () => void;
   isAdminAuth: boolean;
@@ -520,78 +529,130 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return true;
   };
 
-  // Google Sign-in integration handler
-  const signInWithGoogle = (googleUser: { email: string; name?: string; picture?: string }): boolean => {
-    const email = googleUser.email.trim().toLowerCase();
-    let existing = allUsers.find((u) => u.email && u.email.toLowerCase() === email);
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser && fbUser.email) {
+        const isAdmin = fbUser.email === 'inaciosmithndava@gmail.com';
+        if (isAdmin) {
+          setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
+        }
+        try {
+          const fsUser = await getFirestoreUserProfile(fbUser.uid);
+          if (fsUser) {
+            setProfile(fsUser);
+          }
+        } catch {
+          // Handled or offline
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
-    if (existing) {
-      const updatedUser: UserProfile = {
-        ...existing,
-        name: googleUser.name || existing.name,
+  // Real Firebase Google Sign-In with popup
+  const signInWithFirebaseGoogle = async (): Promise<boolean> => {
+    try {
+      toast.info('A conectar aos serviços Google (Firebase)...');
+      const res = await signInWithPopup(auth, googleProvider);
+      const fbUser = res.user;
+
+      if (!fbUser.email) {
+        toast.error('Conta Google sem email associado.');
+        return false;
+      }
+
+      const isAdmin = fbUser.email === 'inaciosmithndava@gmail.com';
+      if (isAdmin) {
+        await setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
+      }
+
+      // Sync with server session
+      const apiRes = await apiRequest<{ success: boolean; user: UserProfile; token: string; isAdmin?: boolean }>(
+        '/auth/google',
+        {
+          method: 'POST',
+          body: JSON.stringify({ email: fbUser.email, name: fbUser.displayName }),
+        }
+      );
+
+      // Fetch or initialize Firestore profile
+      let fsProfile: UserProfile | null = null;
+      try {
+        fsProfile = await getFirestoreUserProfile(fbUser.uid);
+        if (!fsProfile) {
+          fsProfile = {
+            id: fbUser.uid,
+            phone: fbUser.phoneNumber || `84${Math.floor(1000000 + Math.random() * 8999999)}`,
+            email: fbUser.email,
+            name: fbUser.displayName || 'Investidor Google',
+            role: isAdmin ? 'admin' : 'user',
+            authProvider: 'google',
+            balance: 0,
+            bonusBalance: 100,
+            inviteCode: 'IPH' + Math.floor(1000 + Math.random() * 9000),
+            totalRecharged: 0,
+            totalWithdrawn: 0,
+            accumulatedYield: 0,
+            checkInDays: [],
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+          };
+          await upsertFirestoreUserProfile(fsProfile);
+        }
+      } catch (err) {
+        console.warn('Firestore user profile sync error:', err);
+      }
+
+      const activeProfile = apiRes.data?.user || fsProfile || {
+        id: fbUser.uid,
+        phone: `84${Math.floor(1000000 + Math.random() * 8999999)}`,
+        email: fbUser.email,
+        name: fbUser.displayName || 'Investidor Google',
+        role: isAdmin ? 'admin' : 'user',
         authProvider: 'google',
+        balance: 0,
+        bonusBalance: 100,
+        inviteCode: 'IPH' + Math.floor(1000 + Math.random() * 9000),
+        totalRecharged: 0,
+        totalWithdrawn: 0,
+        accumulatedYield: 0,
+        checkInDays: [],
+        createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       };
-      setProfile(updatedUser);
-      setAllUsers((prev) => prev.map((u) => (u.id === existing!.id ? updatedUser : u)));
-      toast.success(`Bem-vindo de volta, ${googleUser.name || existing.phone}!`);
-      if (existing.role === 'admin') {
+
+      if (apiRes.data?.token) {
+        setStoredToken(apiRes.data.token);
+      }
+      setProfile(activeProfile);
+      setAllUsers((prev) => [activeProfile, ...prev.filter((u) => u.id !== activeProfile.id)]);
+
+      if (isAdmin || apiRes.data?.isAdmin) {
         setIsAdminAuth(true);
         sessionStorage.setItem('isAdminAuth', 'true');
+        toast.success(`Bem-vindo, Administrador (${fbUser.displayName || fbUser.email})!`);
         navigateTo('/admin');
       } else {
+        toast.success(`Sessão iniciada via Google: ${fbUser.displayName || fbUser.email}`);
         navigateTo('/conta');
       }
+      syncWithServer();
       return true;
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user') {
+        toast.info('Início de sessão Google cancelado.');
+        return false;
+      }
+      console.error('Firebase Auth Error:', err);
+      toast.error('Erro na autenticação Firebase: ' + (err?.message || 'Tente novamente.'));
+      return false;
     }
+  };
 
-    // Create a new account with Google credentials
-    const phoneSuffix = Math.floor(1000000 + Math.random() * 8999999).toString();
-    const newProfile: UserProfile = {
-      id: Math.floor(100000 + Math.random() * 900000).toString(),
-      phone: `84${phoneSuffix.slice(0, 7)}`,
-      email,
-      name: googleUser.name || 'Utilizador Google',
-      authProvider: 'google',
-      role: 'user',
-      balance: 0,
-      bonusBalance: 100,
-      inviteCode: 'IPH' + Math.floor(1000 + Math.random() * 9000),
-      totalRecharged: 0,
-      totalWithdrawn: 0,
-      accumulatedYield: 0,
-      checkInDays: [],
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-
-    setAllUsers((prev) => [newProfile, ...prev]);
-    setProfile(newProfile);
-
-    const bonusTx: Transaction = {
-      id: 'bn-' + Date.now(),
-      userId: newProfile.id,
-      userPhone: newProfile.phone,
-      type: 'bonus',
-      amount: 100,
-      method: 'Bónus de Boas-vindas (Google)',
-      status: 'concluido',
-      createdAt: new Date().toISOString(),
-    };
-    setTransactions((prev) => [bonusTx, ...prev]);
-
-    recordAdjustmentLog(
-      newProfile.id,
-      newProfile.phone,
-      0,
-      0,
-      100,
-      'bonus',
-      'Bónus de Boas-Vindas Google Sign-in (congelado)'
-    );
-
-    toast.success('Conta vinculada ao Google criada com sucesso! Bónus de 100 MT atribuído.');
-    navigateTo('/conta');
+  // Google Sign-in integration handler (wrapper)
+  const signInWithGoogle = (googleUser: { email: string; name?: string; picture?: string }): boolean => {
+    signInWithFirebaseGoogle();
     return true;
   };
 
@@ -638,6 +699,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const signOut = () => {
+    fbSignOut(auth).catch(() => {});
     apiRequest('/auth/logout', { method: 'POST' });
     setStoredToken(null);
     setProfile(null);
@@ -1765,6 +1827,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         signIn,
         signUp,
         signInWithGoogle,
+        signInWithFirebaseGoogle,
         resetPassword,
         signOut,
         isAdminAuth,

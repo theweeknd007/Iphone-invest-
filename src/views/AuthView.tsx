@@ -26,7 +26,7 @@ interface AuthViewProps {
 }
 
 export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => {
-  const { signIn, signUp, signInWithGoogle, resetPassword, navigateTo, allUsers } = useSession();
+  const { signIn, signUp, signInWithGoogle, signInWithFirebaseGoogle, resetPassword, navigateTo, allUsers } = useSession();
 
   const [mode, setMode] = useState<'login' | 'register' | 'recover'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -48,9 +48,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
   const [recoveryPin, setRecoveryPin] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [generatedDemoPin, setGeneratedDemoPin] = useState<string | null>(null);
-
-  // Google setup modal state
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   // Handle Login
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -148,20 +145,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
     }
   };
 
-  // Google Sign-in Handler
-  const handleGoogleClick = () => {
-    const googleClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
-    if (!googleClientId) {
-      setIsGoogleModalOpen(true);
-    } else {
-      // If configured in environment, prompt standard Google One Tap / OAuth
-      try {
-        toast.info('A conectar com os Serviços Google...');
-        // Standard placeholder if no global google window loaded yet
-        setIsGoogleModalOpen(true);
-      } catch {
-        setIsGoogleModalOpen(true);
-      }
+  // Google Sign-in Handler via Firebase
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const handleGoogleClick = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signInWithFirebaseGoogle();
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -298,27 +289,32 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
             <button
               type="button"
               onClick={handleGoogleClick}
-              className="w-full rounded-2xl border border-border bg-white py-3 px-4 text-sm font-bold text-foreground hover:bg-slate-50 active:scale-98 transition-all flex items-center justify-center gap-2.5 shadow-xs cursor-pointer"
+              disabled={isGoogleLoading}
+              className="w-full rounded-2xl border border-border bg-white py-3 px-4 text-sm font-bold text-foreground hover:bg-slate-50 active:scale-98 transition-all flex items-center justify-center gap-2.5 shadow-xs cursor-pointer disabled:opacity-60"
             >
-              <svg className="size-4 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>Continuar com Google</span>
+              {isGoogleLoading ? (
+                <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              ) : (
+                <svg className="size-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+              )}
+              <span>{isGoogleLoading ? 'A autenticar...' : 'Continuar com Google'}</span>
             </button>
 
             <div className="pt-2 text-center text-xs text-muted-foreground">
@@ -479,6 +475,48 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
               <span>Concluir Registo</span>
             </button>
 
+            {/* Divider */}
+            <div className="relative py-1 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/80" />
+              </div>
+              <span className="relative bg-card px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                ou registe-se com
+              </span>
+            </div>
+
+            {/* Google Register Button */}
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              disabled={isGoogleLoading}
+              className="w-full rounded-2xl border border-border bg-white py-3 px-4 text-sm font-bold text-foreground hover:bg-slate-50 active:scale-98 transition-all flex items-center justify-center gap-2.5 shadow-xs cursor-pointer disabled:opacity-60"
+            >
+              {isGoogleLoading ? (
+                <div className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              ) : (
+                <svg className="size-4 shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+              )}
+              <span>{isGoogleLoading ? 'A autenticar...' : 'Criar Conta com Google (+100 MT)'}</span>
+            </button>
+
             <div className="pt-2 text-center text-xs text-muted-foreground">
               Já tem uma conta registada?{' '}
               <button
@@ -605,72 +643,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ initialMode = 'login' }) => 
               >
                 Voltar ao Início de Sessão
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* =========================================================================
-            GOOGLE OAUTH CONFIGURATION MODAL
-            Explains clearly how to configure Google Client ID without mock secrets
-            ========================================================================= */}
-        {isGoogleModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-            <div className="surface-card w-full max-w-sm rounded-3xl p-5 border border-border shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between border-b border-border/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="grid size-8 place-items-center rounded-xl bg-slate-100">
-                    <Info className="size-4.5 text-primary" />
-                  </div>
-                  <h3 className="font-display font-bold text-base text-foreground">
-                    Autenticação com Google
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsGoogleModalOpen(false)}
-                  className="text-muted-foreground hover:text-foreground text-lg p-1 cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-2.5 text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                <p>
-                  Para habilitar o login com a conta Google diretamente em produção, adicione a sua chave oficial no ficheiro de ambiente:
-                </p>
-                <div className="rounded-xl bg-slate-900 p-2.5 font-mono text-xs text-emerald-400 break-all">
-                  VITE_GOOGLE_CLIENT_ID=seu-id-google.apps.googleusercontent.com
-                </div>
-                <p>
-                  Não são expostas chaves secretas no navegador do utilizador.
-                </p>
-              </div>
-
-              {/* Quick option to test Google login flow */}
-              <div className="pt-2 border-t border-border/60 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsGoogleModalOpen(false);
-                    signInWithGoogle({
-                      email: 'investidor.apple@gmail.com',
-                      name: 'Investidor VIP Apple',
-                    });
-                  }}
-                  className="w-full rounded-2xl bg-primary text-primary-foreground py-2.5 text-xs sm:text-sm font-bold shadow hover:bg-primary/90 transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Sparkles className="size-4" />
-                  <span>Testar Fluxo Google (Ambiente de Testes)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setIsGoogleModalOpen(false)}
-                  className="w-full rounded-2xl border border-border py-2 text-xs font-semibold text-foreground hover:bg-secondary cursor-pointer"
-                >
-                  Continuar com Telemóvel / Email
-                </button>
-              </div>
             </div>
           </div>
         )}

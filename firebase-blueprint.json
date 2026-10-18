@@ -1,0 +1,217 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account and profile data including balance and referral information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 150 },
+        "name": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "authProvider": { "type": "string", "enum": ["google", "phone", "email"] },
+        "balance": { "type": "number" },
+        "bonusBalance": { "type": "number" },
+        "inviteCode": { "type": "string", "maxLength": 20 },
+        "referredBy": { "type": "string", "maxLength": 128 },
+        "totalRecharged": { "type": "number" },
+        "totalWithdrawn": { "type": "number" },
+        "accumulatedYield": { "type": "number" },
+        "status": { "type": "string", "enum": ["ativo", "suspenso"] },
+        "lastCheckInDate": { "type": "string", "maxLength": 50 },
+        "lastYieldCollectedAt": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "lastLoginAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "phone", "balance", "inviteCode"]
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "An iPhone equipment rental or investment contract active on the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "planId": { "type": "string", "maxLength": 64 },
+        "planName": { "type": "string", "maxLength": 100 },
+        "model": { "type": "string", "maxLength": 100 },
+        "price": { "type": "number" },
+        "dailyYield": { "type": "number" },
+        "days": { "type": "number" },
+        "daysCompleted": { "type": "number" },
+        "totalEarned": { "type": "number" },
+        "purchasedAt": { "type": "string", "maxLength": 50 },
+        "lastPayoutAt": { "type": "string", "maxLength": 50 },
+        "nextPayoutAt": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["ativo", "concluido"] }
+      },
+      "required": ["id", "userId", "planId", "planName", "price", "dailyYield", "days", "daysCompleted", "totalEarned", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial deposit, withdrawal, yield or bonus credit records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userPhone": { "type": "string", "maxLength": 30 },
+        "type": { "type": "string", "enum": ["recarga", "levantamento", "rendimento", "bonus", "ajuste"] },
+        "amount": { "type": "number" },
+        "method": { "type": "string", "maxLength": 50 },
+        "reference": { "type": "string", "maxLength": 100 },
+        "note": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["pendente", "concluido", "falhado"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "type", "amount", "method", "status", "createdAt"]
+    },
+    "Plan": {
+      "title": "Plan",
+      "description": "Catalog of Apple devices available for daily yield investment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 100 },
+        "model": { "type": "string", "maxLength": 100 },
+        "price": { "type": "number" },
+        "dailyYield": { "type": "number" },
+        "days": { "type": "number" },
+        "tone": { "type": "string", "maxLength": 50 },
+        "image": { "type": "string", "maxLength": 500 },
+        "video": { "type": "string", "maxLength": 500 },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "badge": { "type": "string", "maxLength": 50 },
+        "specs": { "type": "string", "maxLength": 200 },
+        "chip": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "model", "price", "dailyYield", "days", "tone"]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Global operational configuration including withdrawal fees and payment numbers",
+      "type": "object",
+      "properties": {
+        "platformName": { "type": "string", "maxLength": 100 },
+        "minWithdrawal": { "type": "number" },
+        "minRecharge": { "type": "number" },
+        "withdrawalFeePercent": { "type": "number" },
+        "checkInBonus": { "type": "number" },
+        "level1Commission": { "type": "number" },
+        "level2Commission": { "type": "number" },
+        "level3Commission": { "type": "number" },
+        "supportWhatsapp": { "type": "string", "maxLength": 50 },
+        "whatsappGroupUrl": { "type": "string", "maxLength": 300 },
+        "supportTelegram": { "type": "string", "maxLength": 100 },
+        "officialAnnouncement": { "type": "string", "maxLength": 1000 },
+        "mpesaOfficialNumber": { "type": "string", "maxLength": 50 },
+        "mpesaOfficialName": { "type": "string", "maxLength": 100 },
+        "emolaOfficialNumber": { "type": "string", "maxLength": 50 },
+        "emolaOfficialName": { "type": "string", "maxLength": 100 },
+        "withdrawalsEnabled": { "type": "boolean" },
+        "rechargesEnabled": { "type": "boolean" }
+      },
+      "required": ["platformName", "minWithdrawal", "minRecharge", "withdrawalFeePercent"]
+    },
+    "GiftVoucher": {
+      "title": "GiftVoucher",
+      "description": "Redeemable promo vouchers with fixed bonus values",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "maxLength": 50 },
+        "amount": { "type": "number" },
+        "maxUses": { "type": "number" },
+        "usedCount": { "type": "number" },
+        "createdAt": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["ativo", "expirado"] }
+      },
+      "required": ["id", "code", "amount", "maxUses", "usedCount", "status"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time support and customer care messaging",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "conversationId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 100 },
+        "senderRole": { "type": "string", "enum": ["user", "admin", "system"] },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "content": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "read": { "type": "boolean" },
+        "attachmentUrl": { "type": "string", "maxLength": 500 },
+        "attachmentType": { "type": "string", "enum": ["image", "video", "file"] }
+      },
+      "required": ["id", "conversationId", "senderId", "senderName", "senderRole", "recipientId", "content", "timestamp", "read"]
+    },
+    "ChatConversation": {
+      "title": "ChatConversation",
+      "description": "Conversation thread between user and platform admin",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "userPhone": { "type": "string", "maxLength": 30 },
+        "lastMessage": { "type": "string", "maxLength": 500 },
+        "lastMessageAt": { "type": "string", "maxLength": 50 },
+        "unreadCount": { "type": "number" },
+        "userUnreadCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "closed"] }
+      },
+      "required": ["id", "userId", "userName", "userPhone", "lastMessageAt", "status"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "System administrator document determining admin privileges",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["admin", "superadmin"] },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account documents keyed by authentication UID"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": "Purchase",
+      "description": "Active and completed iPhone investment rentals"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial deposit and withdrawal requests"
+    },
+    "/plans/{planId}": {
+      "schema": "Plan",
+      "description": "Active investment products catalog"
+    },
+    "/settings/{settingId}": {
+      "schema": "PlatformSettings",
+      "description": "Platform global configuration documents"
+    },
+    "/vouchers/{voucherId}": {
+      "schema": "GiftVoucher",
+      "description": "Promo and gift codes"
+    },
+    "/messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Support chat messages"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "ChatConversation",
+      "description": "Support conversation threads"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Authorized administrator whitelist for platform management"
+    }
+  }
+}

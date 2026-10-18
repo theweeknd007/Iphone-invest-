@@ -301,6 +301,8 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
     const db = getDatabase();
     let user = db.users.find((u) => u.email && u.email.toLowerCase() === cleanEmail);
 
+    const isAdminUser = cleanEmail === 'inaciosmithndava@gmail.com';
+
     if (!user) {
       const fallbackPhone = `G-${cleanEmail.split('@')[0].slice(0, 8)}`;
       const myInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -308,8 +310,8 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
         id: `usr-g-${Math.random().toString(36).substring(2, 8)}`,
         phone: fallbackPhone,
         email: cleanEmail,
-        name: name || 'Investidor Google',
-        role: 'user',
+        name: name || (isAdminUser ? 'Administrador Oficial' : 'Investidor Google'),
+        role: isAdminUser ? 'admin' : 'user',
         authProvider: 'google',
         balance: 0,
         bonusBalance: 0,
@@ -324,11 +326,14 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
       };
       db.users.push(user);
       saveDatabase(db);
+    } else if (isAdminUser && user.role !== 'admin') {
+      user.role = 'admin';
+      saveDatabase(db);
     }
 
     const session = createSession(user);
     const { passwordHash: _, passwordSalt: __, ...safeUser } = user;
-    return res.json({ success: true, user: safeUser, token: session.token });
+    return res.json({ success: true, user: safeUser, token: session.token, isAdmin: user.role === 'admin' });
   } catch (err) {
     console.error('[API] Google auth error:', err);
     return res.status(500).json({ error: 'Erro na autenticação Google.' });
