@@ -185,55 +185,6 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    const isMasterAdminIdent = clean === 'admin' || clean.toLowerCase() === 'idetidadefx@gmail.com' || clean.toLowerCase() === 'valdenio';
-
-    if (isMasterAdminIdent || verifyAdminPassword(password)) {
-      if (verifyAdminPassword(password)) {
-        resetRateLimit(`login-${clean}`);
-        const db = getDatabase();
-        let adminUser = db.users.find((u) => u.role === 'admin' || u.email?.toLowerCase() === 'idetidadefx@gmail.com');
-        const { hash, salt } = hashPassword(password);
-        if (!adminUser) {
-          adminUser = {
-            id: 'admin-001',
-            phone: 'admin',
-            email: 'Idetidadefx@gmail.com',
-            name: 'CEO VALDENIO',
-            role: 'admin',
-            balance: 999999,
-            inviteCode: 'ADMINVIP',
-            totalRecharged: 0,
-            totalWithdrawn: 0,
-            accumulatedYield: 0,
-            status: 'ativo',
-            checkInDays: [],
-            passwordHash: hash,
-            passwordSalt: salt,
-            createdAt: new Date().toISOString(),
-          };
-          db.users.push(adminUser);
-        } else {
-          adminUser.name = 'CEO VALDENIO';
-          adminUser.email = 'Idetidadefx@gmail.com';
-          adminUser.passwordHash = hash;
-          adminUser.passwordSalt = salt;
-        }
-        saveDatabase(db);
-
-        const session = createSession(adminUser);
-        logSecurityEvent({
-          eventType: 'LOGIN_SUCCESS',
-          severity: 'INFO',
-          userId: adminUser.id,
-          userPhone: adminUser.phone,
-          details: 'Autenticação de administrador bem-sucedida (CEO VALDENIO).',
-        });
-
-        const { passwordHash: _, passwordSalt: __, ...safeAdmin } = adminUser;
-        return res.json({ success: true, user: safeAdmin, token: session.token, isAdmin: true });
-      }
-    }
-
     const db = getDatabase();
     const user = db.users.find(
       (u) => normalizeIdentifier(u.phone) === clean || (u.email && u.email.toLowerCase() === clean.toLowerCase())
@@ -316,15 +267,13 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Token do Google inválido.' });
     }
 
-    if (!payload || !payload.email || payload.aud !== process.env.GOOGLE_CLIENT_ID) {
+    if (!payload || !payload.email || payload.aud !== process.env.GOOGLE_CLIENT_ID || payload.email_verified !== true) {
       return res.status(401).json({ error: 'Token do Google inválido para esta aplicação.' });
     }
 
     const cleanEmail = String(payload.email).toLowerCase().trim();
     const db = getDatabase();
     let user = db.users.find((u) => u.email && u.email.toLowerCase() === cleanEmail);
-
-    const isAdminUser = cleanEmail === 'inaciosmithndava@gmail.com';
 
     if (!user) {
       const fallbackPhone = `G-${cleanEmail.split('@')[0].slice(0, 8)}`;
@@ -333,8 +282,8 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
         id: `usr-g-${Math.random().toString(36).substring(2, 8)}`,
         phone: fallbackPhone,
         email: cleanEmail,
-        name: name || (isAdminUser ? 'Administrador Oficial' : 'Investidor Google'),
-        role: isAdminUser ? 'admin' : 'user',
+        name: name || 'Investidor Google',
+        role: 'user',
         authProvider: 'google',
         balance: 0,
         bonusBalance: 0,
@@ -348,9 +297,6 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
         lastLoginAt: new Date().toISOString(),
       };
       db.users.push(user);
-      saveDatabase(db);
-    } else if (isAdminUser && user.role !== 'admin') {
-      user.role = 'admin';
       saveDatabase(db);
     }
 
@@ -396,9 +342,7 @@ apiRouter.post('/auth/request-password-reset', async (req: Request, res: Respons
     return res.json({
       success: true,
       message: 'Pedido de recuperação recebido.',
-      token: reset.token,
       expiresAt: reset.expiresAt,
-      devOnly: true,
     });
   } catch (err) {
     console.error('[API] Request password reset error:', err);
@@ -472,7 +416,7 @@ apiRouter.post('/auth/logout', (req: Request, res: Response) => {
 // Deposit / Recharge Request
 apiRouter.post('/finance/recharge', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { amount, method, phone, reference } = req.body;
+    const { amount, method, phone, reference, idempotencyKey } = req.body;
     const numAmount = Number(amount);
 
     const result = await FinancialEngine.requestRecharge({
@@ -481,6 +425,7 @@ apiRouter.post('/finance/recharge', authenticateToken, async (req: Authenticated
       method: method || 'M-Pesa',
       phone: phone || req.user!.phone,
       reference,
+      idempotencyKey,
     });
 
     if (!result.success) {
@@ -683,14 +628,14 @@ apiRouter.post('/admin/auth', (req: Request, res: Response) => {
   }
 
   const db = getDatabase();
-  let admin = db.users.find((u) => u.role === 'admin' || u.email?.toLowerCase() === 'idetidadefx@gmail.com');
+  let admin = db.users.find((u) => u.role === 'admin');
   const { hash, salt } = hashPassword(password);
   if (!admin) {
     admin = {
       id: 'admin-001',
       phone: 'admin',
-      email: 'Idetidadefx@gmail.com',
-      name: 'CEO VALDENIO',
+      email: 'admin@appleinvest.local',
+      name: 'Administrador',
       role: 'admin',
       balance: 999999,
       inviteCode: 'ADMINVIP',
@@ -705,8 +650,8 @@ apiRouter.post('/admin/auth', (req: Request, res: Response) => {
     };
     db.users.push(admin);
   } else {
-    admin.name = 'CEO VALDENIO';
-    admin.email = 'Idetidadefx@gmail.com';
+    admin.name = 'Administrador';
+    admin.email = 'admin@appleinvest.local';
     admin.passwordHash = hash;
     admin.passwordSalt = salt;
   }
