@@ -15,7 +15,7 @@ import {
   logSecurityEvent,
 } from './security';
 import { FinancialEngine, roundCurrency } from './ledger';
-import { StoredUser, UserSession } from './types';
+import { StoredUser, UserSession, PasswordReset } from './types';
 import { UserProfile, Plan, PlatformSettings, ChatMessage, ChatConversation } from '../types';
 import { broadcastChatMessage, broadcastToConversation } from './chatServer';
 
@@ -69,6 +69,22 @@ export function requireAdmin(req: AuthenticatedRequest, res: Response, next: Nex
   next();
 }
 
+function normalizeIdentifier(input: string): string {
+  return input.trim().replace(/\s+/g, '').replace(/^\+258/, '');
+}
+
+function createPasswordResetRecord(identifier: string, userId?: string): PasswordReset {
+  return {
+    id: `pr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`,
+    identifier: normalizeIdentifier(identifier),
+    userId,
+    token: crypto.randomBytes(24).toString('hex'),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    used: false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 // ==========================================
 // AUTHENTICATION ROUTES
 // ==========================================
@@ -82,12 +98,11 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Palavra-passe deve conter pelo menos 6 caracteres e o telefone é obrigatório.' });
     }
 
-    const cleanPhone = phone.replace(/\s+/g, '').replace(/^\+258/, '');
+    const cleanPhone = normalizeIdentifier(String(phone));
     if (!cleanPhone || cleanPhone.length < 8) {
       return res.status(400).json({ error: 'Número de telefone de Moçambique inválido.' });
     }
 
-    // Rate limit registration by IP
     const clientIp = req.ip || '127.0.0.1';
     const rateCheck = checkRateLimit(`reg-${clientIp}`, 10, 60 * 60 * 1000);
     if (!rateCheck.allowed) {
@@ -95,12 +110,11 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
     }
 
     const db = getDatabase();
-    const existing = db.users.find((u) => u.phone.replace(/\s+/g, '') === cleanPhone);
+    const existing = db.users.find((u) => normalizeIdentifier(u.phone) === cleanPhone);
     if (existing) {
       return res.status(400).json({ error: 'Este número de telefone já está registado.' });
     }
 
-    // Password security: PBKDF2 hash + salt
     const { hash, salt } = hashPassword(password);
     const userId = `usr-${cleanPhone}-${Math.random().toString(36).substring(2, 6)}`;
     const myInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -112,7 +126,7 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
       name: name?.trim() || `Investidor ${cleanPhone.slice(-4)}`,
       passwordHash: hash,
       passwordSalt: salt,
-      role: 'user', // STRICT: Users cannot choose 'admin'
+      role: 'user',
       balance: 0,
       bonusBalance: 0,
       inviteCode: myInviteCode,
@@ -156,9 +170,8 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Credenciais incompletas.' });
     }
 
-    const clean = phoneOrEmail.trim().replace(/\s+/g, '').replace(/^\+258/, '');
+    const clean = normalizeIdentifier(String(phoneOrEmail));
 
-    // Brute force protection
     const rateCheck = checkRateLimit(`login-${clean}`, 5, 15 * 60 * 1000);
     if (!rateCheck.allowed) {
       logSecurityEvent({
@@ -172,11 +185,7 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if master admin login
-    const isMasterAdminIdent =
-      clean === 'admin' ||
-      clean.toLowerCase() === 'idetidadefx@gmail.com' ||
-      clean.toLowerCase() === 'valdenio';
+    const isMasterAdminIdent = clean === 'admin' || clean.toLowerCase() === 'idetidadefx@gmail.com' || clean.toLowerCase() === 'valdenio';
 
     if (isMasterAdminIdent || verifyAdminPassword(password)) {
       if (verifyAdminPassword(password)) {
@@ -227,9 +236,7 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     const db = getDatabase();
     const user = db.users.find(
-      (u) =>
-        u.phone.replace(/\s+/g, '') === clean ||
-        (u.email && u.email.toLowerCase() === clean.toLowerCase())
+      (u) => normalizeIdentifier(u.phone) === clean || (u.email && u.email.toLowerCase() === clean.toLowerCase())
     );
 
     if (!user) {
@@ -240,18 +247,16 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Conta suspensa pela administração.' });
     }
 
-    // Check password
     let passwordValid = false;
     if (user.passwordHash && user.passwordSalt) {
       passwordValid = verifyPassword(password, user.passwordHash, user.passwordSalt);
-    } else if (user.password) {
-      // Legacy plaintext migration to PBKDF2
-      if (user.password === password) {
+    } else if ((user as any).password) {
+      if ((user as any).password === password) {
         passwordValid = true;
         const { hash, salt } = hashPassword(password);
         user.passwordHash = hash;
         user.passwordSalt = salt;
-        delete user.password;
+        delete (user as any).password;
         saveDatabase(db);
       }
     }
@@ -272,7 +277,6 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     saveDatabase(db);
 
     const session = createSession(user);
-
     logSecurityEvent({
       eventType: 'LOGIN_SUCCESS',
       severity: 'INFO',
@@ -292,12 +296,31 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
 // Google Authentication with verified email and token issuance
 apiRouter.post('/auth/google', async (req: Request, res: Response) => {
   try {
-    const { email, name } = req.body;
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return res.status(400).json({ error: 'Email Google inválido.' });
+    const { email, name, idToken } = req.body;
+    if (!idToken || typeof idToken !== 'string') {
+      return res.status(400).json({ error: 'Token do Google obrigatório.' });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ error: 'Google client ID não configurado.' });
+    }
+
+    let payload: any = null;
+    try {
+      const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+      if (!googleResponse.ok) {
+        return res.status(401).json({ error: 'Token do Google inválido.' });
+      }
+      payload = await googleResponse.json();
+    } catch {
+      return res.status(401).json({ error: 'Token do Google inválido.' });
+    }
+
+    if (!payload || !payload.email || payload.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ error: 'Token do Google inválido para esta aplicação.' });
+    }
+
+    const cleanEmail = String(payload.email).toLowerCase().trim();
     const db = getDatabase();
     let user = db.users.find((u) => u.email && u.email.toLowerCase() === cleanEmail);
 
@@ -340,39 +363,88 @@ apiRouter.post('/auth/google', async (req: Request, res: Response) => {
   }
 });
 
-// Password recovery reset
-apiRouter.post('/auth/reset-password', async (req: Request, res: Response) => {
+apiRouter.post('/auth/request-password-reset', async (req: Request, res: Response) => {
   try {
-    const { identifier, newPassword, code } = req.body;
-    if (!identifier || !newPassword || !code) {
-      return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
+    const { identifier } = req.body;
+    if (!identifier || typeof identifier !== 'string') {
+      return res.status(400).json({ error: 'Identificador obrigatório.' });
     }
 
-    if (code.trim() !== '1234' && code.trim() !== '0000') {
-      return res.status(400).json({ error: 'Código de recuperação PIN inválido.' });
-    }
-
-    const clean = identifier.trim().replace(/\s+/g, '').replace(/^\+258/, '');
+    const clean = normalizeIdentifier(identifier);
     const db = getDatabase();
     const user = db.users.find(
-      (u) =>
-        u.phone.replace(/\s+/g, '') === clean ||
-        (u.email && u.email.toLowerCase() === clean.toLowerCase())
+      (u) => normalizeIdentifier(u.phone) === clean || (u.email && u.email.toLowerCase() === clean.toLowerCase())
     );
 
     if (!user) {
-      // Prevent user enumeration: generic success-like response or generic message
-      return res.status(400).json({ error: 'Não foi possível redefinir a palavra-passe para o identificador indicado.' });
+      return res.status(200).json({ success: true, message: 'Se o identificador existir, será enviado um pedido de recuperação.' });
+    }
+
+    const reset = createPasswordResetRecord(user.phone || user.email || clean, user.id);
+    db.passwordResets = (db.passwordResets || []).filter((entry) => entry.userId !== user.id && entry.identifier !== clean);
+    db.passwordResets.push(reset);
+    saveDatabase(db);
+
+    logSecurityEvent({
+      eventType: 'UNAUTHORIZED_ACCESS_ATTEMPT',
+      severity: 'WARNING',
+      userId: user.id,
+      userPhone: user.phone,
+      details: `Pedido de reset de palavra-passe solicitado para ${user.phone}.`,
+    });
+
+    return res.json({
+      success: true,
+      message: 'Pedido de recuperação recebido.',
+      token: reset.token,
+      expiresAt: reset.expiresAt,
+      devOnly: true,
+    });
+  } catch (err) {
+    console.error('[API] Request password reset error:', err);
+    return res.status(500).json({ error: 'Erro ao solicitar recuperação de palavra-passe.' });
+  }
+});
+
+// Password recovery reset
+apiRouter.post('/auth/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Token e nova palavra-passe são obrigatórios.' });
+    }
+
+    const db = getDatabase();
+    const reset = (db.passwordResets || []).find(
+      (entry) => entry.token === token && !entry.used && new Date(entry.expiresAt).getTime() > Date.now()
+    );
+
+    if (!reset) {
+      return res.status(400).json({ error: 'Token de recuperação inválido ou expirado.' });
+    }
+
+    const user = db.users.find((u) => u.id === reset.userId);
+    if (!user) {
+      return res.status(400).json({ error: 'Utilizador não encontrado para este reset.' });
     }
 
     const { hash, salt } = hashPassword(newPassword);
     user.passwordHash = hash;
     user.passwordSalt = salt;
-    delete user.password;
+    reset.used = true;
     saveDatabase(db);
+
+    logSecurityEvent({
+      eventType: 'UNAUTHORIZED_ACCESS_ATTEMPT',
+      severity: 'INFO',
+      userId: user.id,
+      userPhone: user.phone,
+      details: `Palavra-passe redefinida com sucesso via token seguro para ${user.phone}.`,
+    });
 
     return res.json({ success: true, message: 'Palavra-passe alterada com sucesso.' });
   } catch (err) {
+    console.error('[API] Reset password error:', err);
     return res.status(500).json({ error: 'Erro ao redefinir palavra-passe.' });
   }
 });
@@ -786,12 +858,10 @@ apiRouter.get('/chat/conversations', (req: Request, res: Response) => {
   const db = getDatabase();
 
   if (session && session.role === 'admin') {
-    // Admin sees all open and closed conversations sorted by lastMessageAt
     const convs = [...db.conversations].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
     return res.json({ conversations: convs });
   }
 
-  // Regular user or visitor
   const userId = session?.userId || (req.query.userId as string);
   if (!userId) {
     return res.json({ conversations: [] });
@@ -869,7 +939,6 @@ apiRouter.post('/chat/send', async (req: Request, res: Response) => {
       saveDatabase(db);
     });
 
-    // Broadcast in real-time
     broadcastChatMessage(msg);
 
     return res.json({ success: true, message: msg });
