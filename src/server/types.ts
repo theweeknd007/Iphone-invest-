@@ -42,6 +42,16 @@ export interface UserSession {
   expiresAt: string;
 }
 
+export interface PasswordReset {
+  id: string;
+  userId?: string;
+  identifier: string; // phone or email used to request reset
+  token: string;
+  expiresAt: string;
+  used?: boolean;
+  createdAt: string;
+}
+
 export interface DatabaseSchema {
   users: StoredUser[];
   purchases: Purchase[];
@@ -54,4 +64,5 @@ export interface DatabaseSchema {
   sessions: UserSession[];
   messages: ChatMessage[];
   conversations: ChatConversation[];
+  passwordResets: PasswordReset[];
 }
