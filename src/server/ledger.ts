@@ -47,6 +47,16 @@ export class FinancialEngine {
         };
       }
 
+      // Check idempotency by key first
+      if (idempotencyKey) {
+        const existingByKey = db.transactions.find(
+          (t) => t.type === 'recarga' && (t as any).idempotencyKey === idempotencyKey
+        );
+        if (existingByKey) {
+          return { success: true, transaction: existingByKey };
+        }
+      }
+
       // Check idempotency if reference or key provided
       if (reference) {
         const existingRef = db.transactions.find(
@@ -60,7 +70,7 @@ export class FinancialEngine {
         }
       }
 
-      const tx: Transaction = {
+      const tx: Transaction & { idempotencyKey?: string } = {
         id: `tx-rec-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
         userId: user.id,
         userPhone: phone || user.phone,
@@ -71,6 +81,10 @@ export class FinancialEngine {
         status: 'pendente',
         createdAt: new Date().toISOString(),
       };
+
+      if (idempotencyKey) {
+        tx.idempotencyKey = idempotencyKey;
+      }
 
       db.transactions.unshift(tx);
       saveDatabase(db);
@@ -104,6 +118,10 @@ export class FinancialEngine {
       return { success: false, message: 'Transação de recarga não encontrada.' };
     }
 
+    if (tx.status === 'concluido') {
+      return { success: true, message: 'Recarga já aprovada anteriormente.', transaction: tx };
+    }
+
     if (tx.status !== 'pendente') {
       return { success: false, message: `Esta recarga já se encontra com o estado: ${tx.status}.` };
     }
@@ -126,7 +144,6 @@ export class FinancialEngine {
       user.totalRecharged = roundCurrency((user.totalRecharged || 0) + tx.amount);
       tx.status = 'concluido';
 
-      // Record adjustment log for audit
       const log: BalanceAdjustmentLog = {
         id: `adj-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
         targetUserId: user.id,
@@ -172,6 +189,9 @@ export class FinancialEngine {
     if (!tx || tx.type !== 'recarga') {
       return { success: false, message: 'Transação de recarga não encontrada.' };
     }
+    if (tx.status === 'falhado') {
+      return { success: true, message: 'Recarga já rejeitada anteriormente.' };
+    }
     if (tx.status !== 'pendente') {
       return { success: false, message: `Esta recarga já tem o estado ${tx.status}.` };
     }
@@ -202,8 +222,9 @@ export class FinancialEngine {
     amount: number;
     method: 'M-Pesa' | 'e-Mola';
     phone: string;
+    idempotencyKey?: string;
   }): Promise<{ success: boolean; message: string; transaction?: Transaction }> {
-    const { userId, amount, method, phone } = params;
+    const { userId, amount, method, phone, idempotencyKey } = params;
 
     if (amount <= 0 || isNaN(amount)) {
       return { success: false, message: 'Montante inválido.' };
@@ -222,6 +243,15 @@ export class FinancialEngine {
         return { success: false, message: 'Os levantamentos estão temporariamente desativados pela administração.' };
       }
 
+      if (idempotencyKey) {
+        const existingByKey = db.transactions.find(
+          (t) => t.type === 'levantamento' && (t as any).idempotencyKey === idempotencyKey
+        );
+        if (existingByKey) {
+          return { success: true, message: 'Pedido já registado anteriormente.', transaction: existingByKey };
+        }
+      }
+
       const minW = db.settings.minWithdrawal || 100;
       if (roundedAmount < minW) {
         return { success: false, message: `O valor mínimo para levantamento é de MT ${minW}.` };
@@ -234,7 +264,6 @@ export class FinancialEngine {
         };
       }
 
-      // Check for excessive pending withdrawals
       const pendingCount = db.transactions.filter(
         (t) => t.userId === user.id && t.type === 'levantamento' && t.status === 'pendente'
       ).length;
@@ -245,12 +274,11 @@ export class FinancialEngine {
         };
       }
 
-      // Atomic debit
       const prevBalance = user.balance;
       user.balance = roundCurrency(user.balance - roundedAmount);
       user.totalWithdrawn = roundCurrency((user.totalWithdrawn || 0) + roundedAmount);
 
-      const tx: Transaction = {
+      const tx: Transaction & { idempotencyKey?: string } = {
         id: `tx-wth-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
         userId: user.id,
         userPhone: phone || user.phone,
@@ -260,6 +288,10 @@ export class FinancialEngine {
         status: 'pendente',
         createdAt: new Date().toISOString(),
       };
+
+      if (idempotencyKey) {
+        tx.idempotencyKey = idempotencyKey;
+      }
 
       db.transactions.unshift(tx);
       saveDatabase(db);
@@ -289,6 +321,9 @@ export class FinancialEngine {
     const tx = db.transactions.find((t) => t.id === txId);
     if (!tx || tx.type !== 'levantamento') {
       return { success: false, message: 'Transação de levantamento não encontrada.' };
+    }
+    if (tx.status === 'concluido') {
+      return { success: true, message: 'Levantamento já marcado como concluído.' };
     }
     if (tx.status !== 'pendente') {
       return { success: false, message: `Este levantamento já está com o estado ${tx.status}.` };
@@ -324,6 +359,9 @@ export class FinancialEngine {
     const tx = db.transactions.find((t) => t.id === txId);
     if (!tx || tx.type !== 'levantamento') {
       return { success: false, message: 'Transação de levantamento não encontrada.' };
+    }
+    if (tx.status === 'falhado') {
+      return { success: true, message: 'Levantamento já rejeitado anteriormente.' };
     }
     if (tx.status !== 'pendente') {
       return { success: false, message: `Este levantamento já tem o estado ${tx.status}.` };
@@ -574,7 +612,6 @@ export class FinancialEngine {
 
     const userTxs = db.transactions.filter((t) => t.userId === user.id);
 
-    // Inflows
     const approvedDeposits = db.transactions
       .filter((t) => t.userId === user.id && t.type === 'recarga' && t.status === 'concluido')
       .reduce((acc, t) => acc + t.amount, 0);
@@ -587,16 +624,13 @@ export class FinancialEngine {
       .filter((t) => t.userId === user.id && t.type === 'bonus' && t.status === 'concluido')
       .reduce((acc, t) => acc + t.amount, 0);
 
-    // Outflows: withdrawals currently held or finalized
     const withdrawalsDebited = db.transactions
       .filter((t) => t.userId === user.id && t.type === 'levantamento' && (t.status === 'concluido' || t.status === 'pendente'))
       .reduce((acc, t) => acc + t.amount, 0);
 
-    // Purchases of equipment
     const userPurchases = db.purchases.filter((p) => p.userId === user.id);
     const totalSpentOnPurchases = userPurchases.reduce((acc, p) => acc + p.price, 0);
 
-    // Administrative adjustments (excluding recharge approvals and refund credits which correspond to failed withdrawals)
     const manualAdjustments = db.adjustmentLogs
       .filter((a) => a.targetUserId === user.id && a.type !== 'aprovacao_recarga' && !a.reason.toLowerCase().includes('reembolso'))
       .reduce((acc, a) => acc + (a.type === 'credito' || a.type === 'bonus' ? a.amount : -a.amount), 0);
@@ -628,3 +662,4 @@ export class FinancialEngine {
     };
   }
 }
+
