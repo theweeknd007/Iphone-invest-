@@ -57,6 +57,7 @@ function getInitialDatabase(): DatabaseSchema {
     sessions: [],
     messages: [],
     conversations: [],
+    passwordResets: [],
   };
 }
 
@@ -112,6 +113,7 @@ export function initDatabase(): DatabaseSchema {
       if (!dbCache!.sessions) dbCache!.sessions = [];
       if (!dbCache!.messages) dbCache!.messages = [];
       if (!dbCache!.conversations) dbCache!.conversations = [];
+      if (!('passwordResets' in dbCache!)) (dbCache as any).passwordResets = [];
       return dbCache!;
     } catch (err) {
       console.error('[DB] Failed to read database, initializing new:', err);
