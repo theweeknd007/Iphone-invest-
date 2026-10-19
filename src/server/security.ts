@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { getDatabase, saveDatabase } from './db';
 import { SecurityAuditLog, StoredUser, UserSession } from './types';
 
-const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'Valdenio258$';
+const ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'AppleInvestMaster2026!';
 const SESSION_DURATION_HOURS = 24 * 7; // 7 days
 
 // Brute-force rate limiting in memory
@@ -72,7 +72,7 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
  */
 export function verifyAdminPassword(candidate: string): boolean {
   try {
-    const validPasswords = Array.from(new Set([ADMIN_MASTER_PASSWORD, 'Valdenio258$']));
+    const validPasswords = Array.from(new Set([ADMIN_MASTER_PASSWORD]));
     for (const valid of validPasswords) {
       const expectedBuf = Buffer.from(valid);
       const candidateBuf = Buffer.from(candidate);

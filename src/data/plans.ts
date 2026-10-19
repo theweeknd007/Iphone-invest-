@@ -121,9 +121,9 @@ export const PLANS: Plan[] = [
 ];
 
 export const INITIAL_TEAM_LEVELS: TeamLevel[] = [
-  { level: 1, rate: 29, members: 0, earnings: 0 },
-  { level: 2, rate: 2, members: 0, earnings: 0 },
-  { level: 3, rate: 1, members: 0, earnings: 0 },
+  { level: 1, name: 'Nível 1', commissionPercent: 29, rate: 29, members: 0, earnings: 0 },
+  { level: 2, name: 'Nível 2', commissionPercent: 2, rate: 2, members: 0, earnings: 0 },
+  { level: 3, name: 'Nível 3', commissionPercent: 1, rate: 1, members: 0, earnings: 0 },
 ];
 
 export function formatCurrency(amount: number): string {

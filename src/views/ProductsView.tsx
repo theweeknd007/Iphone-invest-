@@ -25,6 +25,7 @@ import { formatCurrency } from '../data/plans';
 import { useSession } from '../context/SessionContext';
 import { Plan } from '../types';
 import { AppleLogo } from '../components/AppleLogo';
+import { QuickTipsTutorial } from '../components/QuickTipsTutorial';
 
 type CategoryTab = 'all' | 'classic' | 'pro' | 'ultra';
 
@@ -171,6 +172,11 @@ export const ProductsView: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* =========================================================================
+          INTERACTIVE TUTORIAL / QUICK TIPS
+          ========================================================================= */}
+      <QuickTipsTutorial />
 
       {/* =========================================================================
           2. DYNAMIC CAROUSEL HERO (DellMZ / Icarda Fund Style)

@@ -56,7 +56,19 @@ function getInitialDatabase(): DatabaseSchema {
     settings: defaultSettings,
     sessions: [],
     messages: [],
-    conversations: [],
+    conversations: [
+      {
+        id: 'conv-community',
+        userId: 'community',
+        userName: '👥 Comunidade Apple Invest',
+        userPhone: 'Global',
+        lastMessage: 'Bem-vindo à Comunidade Oficial Apple Invest! Partilhe dicas, ganhos e experiências.',
+        lastMessageAt: new Date().toISOString(),
+        unreadCount: 0,
+        userUnreadCount: 0,
+        status: 'open',
+      },
+    ],
     passwordResets: [],
   };
 }
@@ -113,6 +125,19 @@ export function initDatabase(): DatabaseSchema {
       if (!dbCache!.sessions) dbCache!.sessions = [];
       if (!dbCache!.messages) dbCache!.messages = [];
       if (!dbCache!.conversations) dbCache!.conversations = [];
+      if (!dbCache!.conversations.some((c) => c.id === 'conv-community')) {
+        dbCache!.conversations.unshift({
+          id: 'conv-community',
+          userId: 'community',
+          userName: '👥 Comunidade Apple Invest',
+          userPhone: 'Global',
+          lastMessage: 'Bem-vindo à Comunidade Oficial Apple Invest! Partilhe dicas, ganhos e experiências.',
+          lastMessageAt: new Date().toISOString(),
+          unreadCount: 0,
+          userUnreadCount: 0,
+          status: 'open',
+        });
+      }
       if (!('passwordResets' in dbCache!)) (dbCache as any).passwordResets = [];
       return dbCache!;
     } catch (err) {

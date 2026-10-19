@@ -15,7 +15,7 @@ import {
   logSecurityEvent,
 } from './security';
 import { FinancialEngine, roundCurrency } from './ledger';
-import { StoredUser, UserSession } from './types';
+import { StoredUser, UserSession, ChatMessage, Plan } from './types';
 import { broadcastChatMessage, broadcastToConversation, getAutomatedFaqAnswer } from './chatServer';
 
 export const apiRouter = express.Router();
@@ -785,6 +785,22 @@ apiRouter.get('/chat/conversations', (req: Request, res: Response) => {
 
   const isAdmin = (session && session.role === 'admin') || req.query.role === 'admin' || session?.userId === 'admin-001';
 
+  let communityConv = db.conversations.find((c) => c.id === 'conv-community');
+  if (!communityConv) {
+    communityConv = {
+      id: 'conv-community',
+      userId: 'community',
+      userName: '👥 Comunidade Apple Invest',
+      userPhone: 'Global',
+      lastMessage: 'Bem-vindo à Comunidade Oficial Apple Invest! Partilhe dicas, ganhos e experiências.',
+      lastMessageAt: new Date().toISOString(),
+      unreadCount: 0,
+      userUnreadCount: 0,
+      status: 'open',
+    };
+    db.conversations.push(communityConv);
+  }
+
   if (isAdmin) {
     // Admin sees all open conversations sorted by lastMessageAt
     const convs = [...db.conversations].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
@@ -793,12 +809,11 @@ apiRouter.get('/chat/conversations', (req: Request, res: Response) => {
 
   // Regular user or visitor
   const userId = session?.userId || (req.query.userId as string);
-  if (!userId) {
-    return res.json({ conversations: [] });
+  const userConvs = db.conversations.filter((c) => c.userId === userId || c.id === 'conv-community');
+  if (!userConvs.some((c) => c.id === 'conv-community')) {
+    userConvs.unshift(communityConv);
   }
-
-  const userConv = db.conversations.filter((c) => c.userId === userId);
-  return res.json({ conversations: userConv });
+  return res.json({ conversations: userConvs });
 });
 
 // Start or get a conversation with a specific user (used by admin or user)
@@ -861,7 +876,10 @@ apiRouter.post('/chat/send', async (req: Request, res: Response) => {
     let effectiveConvId = conversationId;
     let effectiveRecipient = recipientId;
 
-    if (isUser) {
+    if (conversationId === 'conv-community') {
+      effectiveConvId = 'conv-community';
+      effectiveRecipient = 'community';
+    } else if (isUser) {
       effectiveConvId = `conv-${senderId || 'guest'}`;
       effectiveRecipient = 'admin';
     } else {

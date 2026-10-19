@@ -356,6 +356,36 @@ export const ChatView: React.FC = () => {
             ========================================================== */}
         <section className="flex flex-1 flex-col h-full bg-card min-w-0">
           
+          {/* Room Switcher for Users: Support vs Community */}
+          {effectiveRole === 'user' && (
+            <div className="flex border-b border-border/80 bg-slate-100/90 p-1.5 gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveConversationId(`conv-${myUserId}`)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeConversationId === `conv-${myUserId}`
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'bg-white text-foreground hover:bg-slate-200'
+                }`}
+              >
+                <Headphones className="size-4" />
+                <span>Suporte Privado</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveConversationId('conv-community')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeConversationId === 'conv-community'
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'bg-white text-foreground hover:bg-slate-200'
+                }`}
+              >
+                <Users className="size-4" />
+                <span>👥 Comunidade Global</span>
+              </button>
+            </div>
+          )}
+
           {/* Top Chat Header */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-white/95 backdrop-blur-xs shadow-xs">
             <div className="flex items-center gap-3 min-w-0">
@@ -373,7 +403,7 @@ export const ChatView: React.FC = () => {
 
               <div className="relative shrink-0">
                 <div className="grid size-10 place-items-center rounded-full bg-foreground text-background shadow-xs">
-                  <AppleLogo className="size-5" />
+                  {activeConversationId === 'conv-community' ? <Users className="size-5" /> : <AppleLogo className="size-5" />}
                 </div>
                 <div
                   className={`absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-white ${
@@ -386,20 +416,24 @@ export const ChatView: React.FC = () => {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="font-display text-sm font-bold text-foreground truncate">
-                    {effectiveRole === 'admin'
+                    {activeConversationId === 'conv-community'
+                      ? '👥 Comunidade Oficial Apple Invest'
+                      : effectiveRole === 'admin'
                       ? (activeConversation?.userName || activeChatUser?.name || 'Cliente Apple Invest')
                       : 'Apoio Oficial APPLE INVEST'}
                   </h2>
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 shrink-0">
                     <Sparkles className="size-2.5" />
-                    {effectiveRole === 'admin' ? 'CLIENTE' : 'VIP'}
+                    {activeConversationId === 'conv-community' ? 'GRUPO GLOBAL' : (effectiveRole === 'admin' ? 'CLIENTE' : 'VIP')}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                   <Lock className="size-2.5 text-muted-foreground/70 shrink-0" />
                   <span className="truncate">
-                    {effectiveRole === 'admin' && activeChatUser ? (
+                    {activeConversationId === 'conv-community' ? (
+                      'Canal aberto para conversas, partilha de lucros e networking entre membros'
+                    ) : effectiveRole === 'admin' && activeChatUser ? (
                       <>
                         <span className="font-mono">{activeChatUser.phone}</span>
                         <span> • Saldo: MT {activeChatUser.balance.toLocaleString('pt-PT')}</span>

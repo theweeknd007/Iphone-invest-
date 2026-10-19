@@ -25,9 +25,16 @@ import { ChatProvider } from './context/ChatContext';
 import { ChatWidget } from './components/ChatWidget';
 
 const MainRouter: React.FC = () => {
-  const { currentRoute } = useSession();
+  const { currentRoute, profile } = useSession();
 
   const renderView = () => {
+    if (!profile) {
+      if (currentRoute === '/registo') {
+        return <RegisterView />;
+      }
+      return <LoginView />;
+    }
+
     switch (currentRoute) {
       case '/':
         return <ProductsView />;

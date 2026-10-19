@@ -1,5 +1,7 @@
 import { UserProfile, Purchase, Transaction, Plan, PlatformSettings, GiftVoucher, BalanceAdjustmentLog, ChatMessage, ChatConversation } from '../types';
 
+export type { Plan, ChatMessage };
+
 export interface SecurityAuditLog {
   id: string;
   timestamp: string;

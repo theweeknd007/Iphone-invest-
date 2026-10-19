@@ -162,7 +162,10 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
             let convId = conversationId;
             let effectiveRecipient = recipientId;
 
-            if (client.role === 'user') {
+            if (conversationId === 'conv-community') {
+              convId = 'conv-community';
+              effectiveRecipient = 'community';
+            } else if (client.role === 'user') {
               convId = `conv-${client.userId}`;
               effectiveRecipient = 'admin';
             } else {
@@ -235,8 +238,8 @@ export function setupChatWebSocket(server: HttpServer): WebSocketServer {
             // Broadcast user/admin message in real-time
             broadcastChatMessage(chatMsg);
 
-            // Automated FAQ response if client is a regular user and message has a recognized query
-            if (client.role === 'user' && chatMsg.content) {
+            // Automated FAQ response if client is a regular user and message has a recognized query (and not community)
+            if (client.role === 'user' && chatMsg.content && convId !== 'conv-community') {
               const faqAnswer = getAutomatedFaqAnswer(chatMsg.content, db.settings);
               if (faqAnswer) {
                 setTimeout(async () => {
@@ -357,11 +360,13 @@ export function broadcastChatMessage(msg: ChatMessage) {
       // 2. The sender
       // 3. The recipient user
       // 4. Any client belonging to this conversation
+      // 5. Community group chat messages for everyone
       const isRecipient = client.userId === msg.recipientId;
       const isSender = client.userId === msg.senderId;
       const isConvOwner = msg.conversationId === `conv-${client.userId}`;
+      const isCommunity = msg.conversationId === 'conv-community';
 
-      if (client.role === 'admin' || isSender || isRecipient || isConvOwner) {
+      if (client.role === 'admin' || isSender || isRecipient || isConvOwner || isCommunity) {
         try {
           ws.send(payload);
         } catch {
@@ -376,7 +381,8 @@ export function broadcastToConversation(conversationId: string, data: any, exclu
   const payload = JSON.stringify(data);
   for (const [ws, client] of activeClients.entries()) {
     if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
-      if (client.role === 'admin' || conversationId === `conv-${client.userId}`) {
+      const isCommunity = conversationId === 'conv-community';
+      if (client.role === 'admin' || conversationId === `conv-${client.userId}` || isCommunity) {
         try {
           ws.send(payload);
         } catch {
