@@ -9,7 +9,19 @@ import {
   upsertFirestoreUserProfile,
   setupAdminDoc,
   createFirestoreTransaction,
+  updateFirestoreTransaction,
   createFirestorePurchase,
+  updateFirestorePurchase,
+  subscribeFirestoreUserProfile,
+  subscribeFirestoreSettings,
+  subscribeFirestorePlans,
+  subscribeFirestoreVouchers,
+  subscribeUserFirestorePurchases,
+  subscribeAllFirestorePurchases,
+  subscribeUserFirestoreTransactions,
+  subscribeAllFirestoreTransactions,
+  subscribeAllFirestoreUsers,
+  migrateLocalDbToFirestore,
 } from '../firebase/firestoreService';
 
 interface SessionContextType {
@@ -46,6 +58,7 @@ interface SessionContextType {
   notifications: PlatformNotification[];
   markNotificationAsRead: (id?: string) => void;
   createVoucher: (code: string, amount: number, maxUses?: number) => void;
+  updateVoucher: (id: string, updated: Partial<GiftVoucher>) => void;
   deleteVoucher: (id: string) => void;
   redeemVoucher: (code: string) => { success: boolean; message: string; amount?: number };
   approveVoucherClaim: (txId: string) => void;
@@ -334,11 +347,99 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     syncWithServer();
   }, [syncWithServer]);
 
+  // 1. Subscribe to Global Firestore data in real-time (Settings, Plans, Vouchers)
+  useEffect(() => {
+    const unsubSettings = subscribeFirestoreSettings((fsSettings) => {
+      if (fsSettings) {
+        setSettings((prev) => ({ ...prev, ...fsSettings }));
+      }
+    });
+
+    const unsubPlans = subscribeFirestorePlans((fsPlans) => {
+      if (fsPlans && fsPlans.length > 0) {
+        setPlans(fsPlans);
+      }
+    });
+
+    const unsubVouchers = subscribeFirestoreVouchers((fsVouchers) => {
+      if (fsVouchers && fsVouchers.length > 0) {
+        setVouchers(fsVouchers);
+      }
+    });
+
+    return () => {
+      unsubSettings();
+      unsubPlans();
+      unsubVouchers();
+    };
+  }, []);
+
+  // 2. Subscribe to authenticated User's Firestore profile, purchases, and transactions in real-time
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const unsubProfile = subscribeFirestoreUserProfile(profile.id, (fsProfile) => {
+      if (fsProfile) {
+        setProfile((prev) => (prev ? { ...prev, ...fsProfile } : fsProfile));
+      }
+    });
+
+    const unsubPurchases = subscribeUserFirestorePurchases(profile.id, (fsPurchases) => {
+      if (fsPurchases) {
+        setPurchases(fsPurchases);
+      }
+    });
+
+    const unsubTransactions = subscribeUserFirestoreTransactions(profile.id, (fsTxs) => {
+      if (fsTxs) {
+        setTransactions(fsTxs);
+      }
+    });
+
+    return () => {
+      unsubProfile();
+      unsubPurchases();
+      unsubTransactions();
+    };
+  }, [profile?.id]);
+
   const [currentRoute, setCurrentRoute] = useState<RoutePath>('/');
 
   const [isAdminAuth, setIsAdminAuth] = useState(() => {
     return sessionStorage.getItem('isAdminAuth') === 'true';
   });
+
+  // 3. Admin subscriptions: listen to all transactions and purchases when admin is authenticated
+  useEffect(() => {
+    if (!isAdminAuth) return;
+
+    // Seed/migrate Firestore catalog when admin authenticates
+    migrateLocalDbToFirestore({ plans: PLANS, settings, vouchers }, true).catch(() => {});
+
+    const unsubAllTxs = subscribeAllFirestoreTransactions((allTxs) => {
+      if (allTxs) {
+        setTransactions(allTxs);
+      }
+    });
+
+    const unsubAllPurchases = subscribeAllFirestorePurchases((allP) => {
+      if (allP) {
+        setPurchases(allP);
+      }
+    });
+
+    const unsubAllUsers = subscribeAllFirestoreUsers((allU) => {
+      if (allU) {
+        setAllUsers(allU);
+      }
+    });
+
+    return () => {
+      unsubAllTxs();
+      unsubAllPurchases();
+      unsubAllUsers();
+    };
+  }, [isAdminAuth]);
 
   const adminLogin = (password: string) => {
     apiRequest<{ success: boolean; token: string; user: UserProfile }>('/admin/auth', {
@@ -577,7 +678,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser && fbUser.email) {
         const cleanEmail = fbUser.email.toLowerCase();
-        const isAdmin = cleanEmail === 'inaciosmithndava@gmail.com' || cleanEmail === 'idetidadefx@gmail.com';
+        const isAdmin =
+          cleanEmail === 'valdeniochivoze69@gmail.com' ||
+          cleanEmail === 'inaciosmithndava@gmail.com' ||
+          cleanEmail === 'idetidadefx@gmail.com';
         if (isAdmin) {
           setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
         }
@@ -607,7 +711,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const cleanEmail = fbUser.email.toLowerCase();
-      const isAdmin = cleanEmail === 'inaciosmithndava@gmail.com' || cleanEmail === 'idetidadefx@gmail.com';
+      const isAdmin =
+        cleanEmail === 'valdeniochivoze69@gmail.com' ||
+        cleanEmail === 'inaciosmithndava@gmail.com' ||
+        cleanEmail === 'idetidadefx@gmail.com';
       if (isAdmin) {
         await setupAdminDoc(fbUser.uid, fbUser.email).catch(() => {});
       }

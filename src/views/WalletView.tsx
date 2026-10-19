@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 export const WalletView: React.FC = () => {
   const { profile, updateWallet } = useSession();
   const [provider, setProvider] = useState<'M-Pesa' | 'e-Mola'>(
-    profile?.wallet?.provider ?? 'M-Pesa'
+    (profile?.wallet?.provider as 'M-Pesa' | 'e-Mola') ?? 'M-Pesa'
   );
   const [phone, setPhone] = useState(
     profile?.wallet?.phone ?? profile?.phone ?? ''

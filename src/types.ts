@@ -41,6 +41,7 @@ export interface UserProfile {
     holderName?: string;
   };
   lastCheckInDate?: string;
+  lastYieldCollectedAt?: string;
   checkInDays?: any;
   status?: 'ativo' | 'bloqueado' | 'suspenso';
   password?: string;
@@ -112,7 +113,21 @@ export type RoutePath =
   | '/admin'
   | '/conta'
   | '/entrar'
-  | '/recarregar';
+  | '/registo'
+  | '/recarregar'
+  | '/levantar'
+  | '/meus-produtos'
+  | '/equipa'
+  | '/conta/checkin'
+  | '/conta/detalhes'
+  | '/conta/recargas'
+  | '/conta/levantamentos'
+  | '/conta/rendimentos'
+  | '/conta/carteira'
+  | '/suporte'
+  | '/sobre'
+  | '/regras'
+  | '/chat';
 
 export interface PlatformSettings {
   platformName: string;

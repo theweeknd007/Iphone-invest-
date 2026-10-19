@@ -1,5 +1,16 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged, signInAnonymously, User as FirebaseUser } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as fbSignOut,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -9,15 +20,6 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// Initialize anonymous auth if user is not signed in
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    signInAnonymously(auth).catch(() => {
-      // Anonymous auth might not be enabled in console, fail gracefully
-    });
-  }
-});
 
 export enum OperationType {
   CREATE = 'create',
@@ -80,5 +82,13 @@ export async function testConnection(): Promise<void> {
 // Trigger initial connection verification
 testConnection();
 
-export { signInWithPopup, fbSignOut, onAuthStateChanged };
+export {
+  signInWithPopup,
+  fbSignOut,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+};
 export type { FirebaseUser };

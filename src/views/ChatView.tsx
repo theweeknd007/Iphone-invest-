@@ -605,9 +605,9 @@ export const ChatView: React.FC = () => {
                         {isMe && (
                           <span>
                             {msg.read ? (
-                              <CheckCheck className="size-3 text-sky-200" title="Lido" />
+                              <span title="Lido"><CheckCheck className="size-3 text-sky-200" /></span>
                             ) : (
-                              <Check className="size-3 text-white/70" title="Enviado" />
+                              <span title="Enviado"><Check className="size-3 text-white/70" /></span>
                             )}
                           </span>
                         )}

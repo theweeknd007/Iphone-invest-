@@ -30,8 +30,9 @@ service cloud.firestore {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         (request.auth.token.email != null && (
-          request.auth.token.email.lower() == 'inaciosmithndava@gmail.com' ||
-          request.auth.token.email.lower() == 'idetidadefx@gmail.com'
+          request.auth.token.email.lower() == 'valdeniochivoze69@gmail.com' ||
+          request.auth.token.email.lower() == 'idetidadefx@gmail.com' ||
+          request.auth.token.email.lower() == 'inaciosmithndava@gmail.com'
         ))
       );
     }
@@ -39,8 +40,7 @@ service cloud.firestore {
     // Admins Collection
     match /admins/{adminId} {
       allow get: if isSignedIn() && (isOwner(adminId) || isAdmin());
-      allow list: if isAdmin();
-      allow write: if isAdmin();
+      allow list, write: if isAdmin();
     }
 
     // User Profiles
@@ -52,13 +52,14 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if true;
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isValidUserProfile(incoming()) &&
                        incoming().id == userId &&
+                       (isOwner(userId) || isAdmin()) &&
                        (!('role' in incoming()) || incoming().role == 'user' || isAdmin()) &&
                        incoming().balance == 0;
-      allow update: if ((isOwner(userId) || !isSignedIn()) &&
+      allow update: if (isOwner(userId) &&
                         isValidUserProfile(incoming()) &&
                         incoming().id == existing().id &&
                         incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'email', 'name', 'wallet', 'lastCheckInDate', 'lastYieldCollectedAt', 'lastLoginAt', 'status'])) ||
@@ -78,15 +79,18 @@ service cloud.firestore {
     }
 
     match /purchases/{purchaseId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isValidPurchase(incoming()) &&
-                       incoming().status == 'ativo' &&
-                       (!isSignedIn() || incoming().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+                       isValidPurchase(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().status == 'ativo';
       allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
         isValidPurchase(incoming()) &&
         incoming().userId == existing().userId &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['daysCompleted', 'totalEarned', 'lastPayoutAt', 'nextPayoutAt', 'status'])
+        incoming().diff(existing()).affectedKeys().hasOnly(['daysCompleted', 'totalEarned', 'lastPayoutAt', 'lastYieldCollectedAt', 'status'])
       );
       allow delete: if isAdmin();
     }
@@ -101,13 +105,14 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isValidTransaction(incoming()) &&
-                       (incoming().type in ['recarga', 'levantamento', 'bonus']) &&
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+                       isValidTransaction(incoming()) &&
+                       incoming().userId == request.auth.uid &&
+                       (incoming().type in ['recarga', 'levantamento', 'bonus', 'rendimento']) &&
                        incoming().status == 'pendente';
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // Plans Catalog
@@ -124,16 +129,26 @@ service cloud.firestore {
 
     // Gift Vouchers
     match /vouchers/{voucherId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // Chat Conversations
     match /conversations/{conversationId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if incoming().userId is string;
-      allow update: if true;
+      allow get, list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        conversationId == 'conv-community'
+      );
+      allow create: if isSignedIn() && (
+        incoming().userId == request.auth.uid ||
+        isAdmin() ||
+        conversationId == 'conv-community'
+      );
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
@@ -146,11 +161,16 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isValidMessage(incoming()) &&
-                       (!('senderRole' in incoming()) || incoming().senderRole == 'user' || isAdmin());
-      allow update: if incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow get, list: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        isAdmin() ||
+        resource.data.conversationId == 'conv-community'
+      );
+      allow create: if isSignedIn() &&
+                       isValidMessage(incoming()) &&
+                       (incoming().senderId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin();
     }
   }

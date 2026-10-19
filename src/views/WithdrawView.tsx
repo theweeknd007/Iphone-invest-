@@ -18,7 +18,7 @@ export const WithdrawView: React.FC = () => {
   const { withdraw, updateWallet, profile, navigateTo, settings } = useSession();
   const [amount, setAmount] = useState<string>('');
   const [method, setMethod] = useState<'M-Pesa' | 'e-Mola'>(
-    profile?.wallet?.provider ?? 'M-Pesa'
+    (profile?.wallet?.provider as 'M-Pesa' | 'e-Mola') ?? 'M-Pesa'
   );
   const [phone, setPhone] = useState<string>(
     profile?.wallet?.phone ?? profile?.phone ?? ''

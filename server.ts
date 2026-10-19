@@ -23,7 +23,7 @@ async function startServer() {
   initDatabase();
 
   // Ensure uploads directory exists
-  const uploadsPath = path.resolve(__dirname, 'public', 'uploads');
+  const uploadsPath = path.resolve(process.cwd(), 'public', 'uploads');
   if (!fs.existsSync(uploadsPath)) {
     fs.mkdirSync(uploadsPath, { recursive: true });
   }
@@ -47,7 +47,7 @@ async function startServer() {
   // Mount API endpoints
   app.use('/api', apiRouter);
 
-  // Health check endpoint
+  // Health check endpoint (for Cloud Run and monitoring)
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'iPhone-Invest Financial Engine', timestamp: new Date().toISOString() });
   });
@@ -66,14 +66,19 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     // Production mode: Serve built static assets
-    const distPath = path.resolve(__dirname, 'dist');
-    if (fs.existsSync(distPath)) {
+    // When run directly as bundled dist/server.js: index.html is located in __dirname
+    // When run from root via server.js or tsx: index.html is in path.resolve(__dirname, 'dist')
+    const distPath = fs.existsSync(path.resolve(__dirname, 'index.html'))
+      ? __dirname
+      : path.resolve(__dirname, 'dist');
+
+    if (fs.existsSync(distPath) && fs.existsSync(path.join(distPath, 'index.html'))) {
       app.use(express.static(distPath));
       app.get('*', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
       });
     } else {
-      console.warn('[Server] dist directory not found. Please run "npm run build".');
+      console.warn(`[Server] Built client not found at ${distPath}. Please run "npm run build".`);
     }
   }
 
@@ -85,6 +90,22 @@ async function startServer() {
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[Fortaleza] Server successfully running at http://0.0.0.0:${PORT} (mode: ${isProduction ? 'production' : 'development'})`);
   });
+
+  // Graceful shutdown handling for Cloud Run container lifecycle
+  const shutdown = (signal: string) => {
+    console.log(`[Server] Received ${signal}, shutting down gracefully...`);
+    httpServer.close(() => {
+      console.log('[Server] HTTP and WebSocket servers closed.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('[Server] Forceful shutdown after timeout.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer().catch((err) => {

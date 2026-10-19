@@ -29,7 +29,8 @@
       "passwordHash": "7d09c1f0a369e13b3f8d9fcc289507d9cf0680fbf819af59e8a8b269a37196eff00fd76fbee028362ff4fea8145d364980cd50cb055c2799f3d10fc6f579ca2c",
       "passwordSalt": "e022f9ba9c3d28f7788e5ac33bff334c",
       "createdAt": "2026-10-17T14:41:54.138Z",
-      "email": "Idetidadefx@gmail.com"
+      "email": "Idetidadefx@gmail.com",
+      "lastLoginAt": "2026-10-19T17:18:52.380Z"
     }
   ],
   "purchases": [],
@@ -391,6 +392,51 @@
       "userId": "admin-001",
       "userPhone": "admin",
       "details": "Autenticação de administrador bem-sucedida (CEO VALDENIO)."
+    },
+    {
+      "id": "sec-1792430327057-b3137c12",
+      "timestamp": "2026-10-19T17:18:47.057Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Sessão iniciada com sucesso."
+    },
+    {
+      "id": "sec-1792430327125-749bda50",
+      "timestamp": "2026-10-19T17:18:47.125Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Sessão iniciada com sucesso."
+    },
+    {
+      "id": "sec-1792430327201-606cb7f0",
+      "timestamp": "2026-10-19T17:18:47.201Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Sessão iniciada com sucesso."
+    },
+    {
+      "id": "sec-1792430332315-bb694057",
+      "timestamp": "2026-10-19T17:18:52.315Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Sessão iniciada com sucesso."
+    },
+    {
+      "id": "sec-1792430332381-2b710b1f",
+      "timestamp": "2026-10-19T17:18:52.381Z",
+      "eventType": "LOGIN_SUCCESS",
+      "severity": "INFO",
+      "userId": "admin-001",
+      "userPhone": "admin",
+      "details": "Sessão iniciada com sucesso."
     }
   ],
   "settings": {
@@ -423,12 +469,12 @@
   },
   "sessions": [
     {
-      "token": "0fabc111e0c4aaa2171677fe75ad1cc8d3663c445d47e4067d4eb3d0bc7973ef",
+      "token": "bc610cd14313892325895686ec236514e0b1b4c034727d65db0e480bb28788cd",
       "userId": "admin-001",
       "phone": "admin",
       "role": "admin",
-      "createdAt": "2026-10-17T15:00:32.292Z",
-      "expiresAt": "2026-10-24T15:00:32.292Z"
+      "createdAt": "2026-10-19T17:18:52.381Z",
+      "expiresAt": "2026-10-26T17:18:52.381Z"
     }
   ],
   "messages": [
@@ -441,12 +487,23 @@
       "recipientId": "admin",
       "content": "",
       "timestamp": "2026-10-18T22:50:48.590Z",
-      "read": false,
+      "read": true,
       "attachmentUrl": "/uploads/chat-1792363848368-ntoi.png",
       "attachmentType": "image"
     }
   ],
   "conversations": [
+    {
+      "id": "conv-community",
+      "userId": "community",
+      "userName": "👥 Comunidade Apple Invest",
+      "userPhone": "Global",
+      "lastMessage": "Bem-vindo à Comunidade Oficial Apple Invest! Partilhe dicas, ganhos e experiências.",
+      "lastMessageAt": "2026-10-19T16:14:00.635Z",
+      "unreadCount": 0,
+      "userUnreadCount": 0,
+      "status": "open"
+    },
     {
       "id": "conv-visitor-guest",
       "userId": "visitor-guest",
@@ -454,9 +511,11 @@
       "userPhone": "Cliente",
       "lastMessage": "📷 Foto",
       "lastMessageAt": "2026-10-18T22:50:48.590Z",
-      "unreadCount": 1,
+      "unreadCount": 0,
       "userUnreadCount": 0,
       "status": "open"
     }
-  ]
+  ],
+  "notifications": [],
+  "passwordResets": []
 }
