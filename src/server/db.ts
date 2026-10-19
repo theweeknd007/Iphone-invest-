@@ -70,6 +70,7 @@ function getInitialDatabase(): DatabaseSchema {
       },
     ],
     passwordResets: [],
+    notifications: [],
   };
 }
 
@@ -125,6 +126,7 @@ export function initDatabase(): DatabaseSchema {
       if (!dbCache!.sessions) dbCache!.sessions = [];
       if (!dbCache!.messages) dbCache!.messages = [];
       if (!dbCache!.conversations) dbCache!.conversations = [];
+      if (!dbCache!.notifications) dbCache!.notifications = [];
       if (!dbCache!.conversations.some((c) => c.id === 'conv-community')) {
         dbCache!.conversations.unshift({
           id: 'conv-community',

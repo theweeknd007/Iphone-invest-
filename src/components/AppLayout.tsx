@@ -17,6 +17,7 @@ import { useChat } from '../context/ChatContext';
 import { RoutePath } from '../types';
 import { AppleLogo } from './AppleLogo';
 import { formatCurrency } from '../data/plans';
+import { NotificationBell } from './NotificationBell';
 
 interface AppLayoutProps {
   title: string;
@@ -135,6 +136,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               )}
             </button>
 
+            <NotificationBell />
+
             <button
               type="button"
               onClick={() => navigateTo('/suporte')}
@@ -176,7 +179,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             {title}
           </h1>
 
-          <div className="flex h-12 items-center justify-end text-sm text-foreground/80">
+          <div className="flex h-12 items-center justify-end gap-1 text-sm text-foreground/80">
+            <NotificationBell />
             {action || (
               <button
                 type="button"

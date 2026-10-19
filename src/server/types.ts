@@ -1,6 +1,6 @@
-import { UserProfile, Purchase, Transaction, Plan, PlatformSettings, GiftVoucher, BalanceAdjustmentLog, ChatMessage, ChatConversation } from '../types';
+import { UserProfile, Purchase, Transaction, Plan, PlatformSettings, GiftVoucher, BalanceAdjustmentLog, ChatMessage, ChatConversation, PlatformNotification } from '../types';
 
-export type { Plan, ChatMessage };
+export type { Plan, ChatMessage, Transaction, GiftVoucher, PlatformNotification };
 
 export interface SecurityAuditLog {
   id: string;
@@ -67,4 +67,5 @@ export interface DatabaseSchema {
   messages: ChatMessage[];
   conversations: ChatConversation[];
   passwordResets: PasswordReset[];
+  notifications: PlatformNotification[];
 }

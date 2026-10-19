@@ -48,7 +48,7 @@ import { useSession } from '../context/SessionContext';
 import { useChat } from '../context/ChatContext';
 import { apiRequest, getStoredToken } from '../api/client';
 import { formatCurrency, formatDate } from '../data/plans';
-import { Plan, PlatformSettings, UserProfile, Transaction } from '../types';
+import { Plan, PlatformSettings, UserProfile, Transaction, GiftVoucher } from '../types';
 import { toast } from 'sonner';
 
 type AdminTab =
@@ -77,7 +77,10 @@ export const AdminView: React.FC = () => {
     settings,
     vouchers,
     createVoucher,
+    updateVoucher,
     deleteVoucher,
+    approveVoucherClaim,
+    rejectVoucherClaim,
     creditUserBonus,
     unfreezeUserBonus,
     massBonusCredit,
@@ -129,6 +132,16 @@ export const AdminView: React.FC = () => {
   const [newVoucherCode, setNewVoucherCode] = useState('');
   const [newVoucherAmount, setNewVoucherAmount] = useState('100');
   const [newVoucherMaxUses, setNewVoucherMaxUses] = useState('50');
+  const [newVoucherStatus, setNewVoucherStatus] = useState<'ativo' | 'expirado' | 'desativado'>('ativo');
+
+  // Voucher Edit state
+  const [editingVoucher, setEditingVoucher] = useState<GiftVoucher | null>(null);
+  const [editVoucherCode, setEditVoucherCode] = useState('');
+  const [editVoucherAmount, setEditVoucherAmount] = useState('100');
+  const [editVoucherMaxUses, setEditVoucherMaxUses] = useState('50');
+  const [editVoucherStatus, setEditVoucherStatus] = useState<'ativo' | 'expirado' | 'desativado'>('ativo');
+
+  const pendingVoucherClaims = transactions.filter((t) => t.type === 'bonus' && t.status === 'pendente');
 
   // Plan Edit Modal state
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
@@ -174,6 +187,16 @@ export const AdminView: React.FC = () => {
   const [broadcastMessage, setBroadcastMessage] = useState<string>(settings.broadcastAlert?.message || 'Sistema atualizado! Rendimentos de 5% ao dia garantidos. Apoio oficial 24h via WhatsApp.');
   const [broadcastTitle, setBroadcastTitle] = useState<string>(settings.broadcastAlert?.title || 'Aviso da Administração');
   const [broadcastType, setBroadcastType] = useState<'info' | 'warning' | 'success' | 'urgent'>(settings.broadcastAlert?.type || 'info');
+
+  React.useEffect(() => {
+    setLocalSettings(settings);
+    if (settings.broadcastAlert) {
+      setBroadcastActive(settings.broadcastAlert.active ?? true);
+      setBroadcastMessage(settings.broadcastAlert.message || '');
+      setBroadcastTitle(settings.broadcastAlert.title || 'Aviso da Administração');
+      setBroadcastType(settings.broadcastAlert.type || 'info');
+    }
+  }, [settings]);
 
   const pendingWithdrawalsCount = transactions.filter(
     (t) => t.type === 'levantamento' && t.status === 'pendente'
@@ -270,12 +293,14 @@ export const AdminView: React.FC = () => {
     setNewPasswordInput('');
   };
 
-  const filteredUsers = allUsers.filter(
-    (u) =>
-      u.phone.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.id.includes(userSearch) ||
-      u.wallet?.holderName?.toLowerCase().includes(userSearch.toLowerCase())
-  );
+  const filteredUsers = allUsers.filter((u) => {
+    if (!u) return false;
+    const s = userSearch.toLowerCase();
+    const phone = (u.phone || '').toLowerCase();
+    const id = String(u.id || '');
+    const holder = (u.wallet?.holderName || '').toLowerCase();
+    return phone.includes(s) || id.includes(s) || holder.includes(s);
+  });
 
   const filteredWithdrawals = transactions
     .filter((t) => t.type === 'levantamento')
@@ -295,17 +320,17 @@ export const AdminView: React.FC = () => {
         (t.userPhone && t.userPhone.includes(s)) ||
         (t.reference && t.reference.toLowerCase().includes(s)) ||
         (t.method && t.method.toLowerCase().includes(s)) ||
-        t.id.toLowerCase().includes(s)
+        (t.id && t.id.toLowerCase().includes(s))
       );
     });
 
   const totalFeesRetained =
     adminStats.collectedFeesTotal ||
-    Math.round(adminStats.totalWithdrawn * ((settings.withdrawalFeePercent || 20) / 100));
+    Math.round((adminStats.totalWithdrawn || 0) * ((settings.withdrawalFeePercent || 20) / 100));
 
   const totalDailyLiabilities = purchases
     .filter((p) => p.status === 'ativo')
-    .reduce((acc, p) => acc + p.dailyYield, 0);
+    .reduce((acc, p) => acc + (p.dailyYield || 0), 0);
 
   if (!isAdminAuth) {
     return (
@@ -536,6 +561,11 @@ export const AdminView: React.FC = () => {
           >
             <Gift className="size-4" />
             <span>Vouchers ({vouchers.length})</span>
+            {pendingVoucherClaims.length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse">
+                {pendingVoucherClaims.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1495,17 +1525,18 @@ export const AdminView: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 7: VOUCHERS / CUPÕES PROMOCIONAIS (NOVA FUNÇÃO) */}
+        {/* TAB 7: VOUCHERS / CUPÕES PROMOCIONAIS */}
         {activeTab === 'vouchers' && (
-          <div className="space-y-4 fade-up">
+          <div className="space-y-5 fade-up">
+            {/* Header & Create Button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="font-display text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
                   <Gift className="size-5 text-primary" />
-                  <span>Códigos de Vouchers & Cupões</span>
+                  <span>Códigos de Vouchers & Cupões Promocionais</span>
                 </h2>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  Gere códigos promocionais que os utilizadores podem resgatar no menu da conta.
+                  Gere, edite e aprove reservas de bónus. O saldo só é creditado aos utilizadores após a sua aprovação.
                 </p>
               </div>
 
@@ -1515,6 +1546,7 @@ export const AdminView: React.FC = () => {
                   setNewVoucherCode(`APPLE${Math.floor(100 + Math.random() * 900)}`);
                   setNewVoucherAmount('100');
                   setNewVoucherMaxUses('50');
+                  setNewVoucherStatus('ativo');
                   setIsVoucherModalOpen(true);
                 }}
                 className="flex items-center justify-center gap-1.5 rounded-xl bg-primary text-white px-4 py-2.5 text-xs sm:text-sm font-bold shadow-md hover:bg-primary/90 transition-colors cursor-pointer shrink-0"
@@ -1524,58 +1556,187 @@ export const AdminView: React.FC = () => {
               </button>
             </div>
 
-            {vouchers.length === 0 ? (
-              <div className="surface-card rounded-2xl p-8 text-center border border-border/70 space-y-2">
-                <Gift className="size-10 text-muted-foreground mx-auto" />
-                <p className="text-sm font-bold text-foreground">Nenhum voucher ativo no momento.</p>
-                <p className="text-xs text-muted-foreground">Clique no botão acima para criar o primeiro código promocional.</p>
+            {/* Security Notice: Balance Control Policy */}
+            <div className="rounded-2xl bg-amber-500/10 border border-amber-500/25 p-3.5 flex items-start gap-3 text-amber-950 dark:text-amber-200">
+              <ShieldCheck className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-0.5">
+                <p className="font-bold">Política Estrita de Saldos e Vouchers</p>
+                <p className="text-muted-foreground leading-relaxed">
+                  Nenhum utilizador adiciona saldo diretamente com vouchers. Ao introduzir um código válido, o utilizador submete uma <strong>reserva de bónus</strong> que entra na lista de pendentes abaixo. O saldo só é creditado na conta do utilizador quando o administrador clicar em <strong>Aprovar Bónus</strong>.
+                </p>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {vouchers.map((v) => (
-                  <div
-                    key={v.id}
-                    className="surface-card rounded-2xl p-4 border border-border/70 space-y-3 relative overflow-hidden"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
+            </div>
+
+            {/* PENDING VOUCHER RESERVATIONS SECTION */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-sm font-bold text-foreground flex items-center gap-2">
+                  <Clock className="size-4 text-amber-600" />
+                  <span>Pedidos de Reserva de Bónus Pendentes ({pendingVoucherClaims.length})</span>
+                </h3>
+              </div>
+
+              {pendingVoucherClaims.length === 0 ? (
+                <div className="surface-card rounded-2xl p-5 text-center border border-border/70">
+                  <CheckCheck className="size-6 text-emerald-600 mx-auto mb-1.5" />
+                  <p className="text-xs font-semibold text-foreground">Nenhuma reserva de bónus pendente no momento.</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Quando os utilizadores reservarem um código de voucher, os pedidos aparecerão aqui para aprovação.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {pendingVoucherClaims.map((tx) => (
+                    <div
+                      key={tx.id}
+                      className="surface-card rounded-2xl p-4 border border-amber-500/30 bg-amber-50/20 dark:bg-amber-950/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+                    >
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-base font-black tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
-                            {v.code}
+                          <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                            {tx.reference ? tx.reference.replace('VOUCHER:', '') : 'VOUCHER'}
                           </span>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            {formatCurrency(v.amount)}
+                          <span className="text-sm font-black text-emerald-600">
+                            +{formatCurrency(tx.amount)}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                            Pendente
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1.5">
-                          Criado em: {formatDate(v.createdAt)}
-                        </p>
+                        <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Utilizador: <strong className="text-foreground">+258 {tx.userPhone || '—'}</strong> (ID: {tx.userId})</span>
+                          <span>·</span>
+                          <span>Data: {formatDate(tx.createdAt)}</span>
+                        </div>
+                        {tx.note && (
+                          <p className="text-[11px] text-muted-foreground italic">
+                            Nota: {tx.note}
+                          </p>
+                        )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Eliminar o voucher ${v.code}?`)) {
-                            deleteVoucher(v.id);
-                          }
-                        }}
-                        className="text-muted-foreground hover:text-destructive p-1 rounded-lg hover:bg-destructive/10 transition-colors cursor-pointer"
-                        title="Eliminar voucher"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Aprovar bónus de ${formatCurrency(tx.amount)} para +258 ${tx.userPhone}? O saldo será creditado imediatamente.`)) {
+                              approveVoucherClaim(tx.id);
+                            }
+                          }}
+                          className="flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <Check className="size-3.5" />
+                          <span>Aprovar Bónus</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const reason = window.prompt('Motivo da rejeição:', 'Reserva de bónus recusada pela administração.');
+                            if (reason !== null) {
+                              rejectVoucherClaim(tx.id, reason);
+                            }
+                          }}
+                          className="flex items-center gap-1 rounded-xl bg-secondary hover:bg-destructive/10 hover:text-destructive text-muted-foreground px-3 py-2 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <X className="size-3.5" />
+                          <span>Rejeitar</span>
+                        </button>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-border/60">
-                      <span className="text-muted-foreground">Utilizações:</span>
-                      <span className="font-bold text-foreground">
-                        {v.usedCount} / {v.maxUses} resgates
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            {/* VOUCHERS LIST */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-sm font-bold text-foreground flex items-center gap-2">
+                  <Gift className="size-4 text-primary" />
+                  <span>Vouchers Configurados ({vouchers.length})</span>
+                </h3>
               </div>
-            )}
+
+              {vouchers.length === 0 ? (
+                <div className="surface-card rounded-2xl p-8 text-center border border-border/70 space-y-2">
+                  <Gift className="size-10 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-bold text-foreground">Nenhum voucher criado.</p>
+                  <p className="text-xs text-muted-foreground">Clique no botão "Criar Novo Voucher" acima para gerar um código.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {vouchers.map((v) => (
+                    <div
+                      key={v.id}
+                      className="surface-card rounded-2xl p-4 border border-border/70 space-y-3 relative overflow-hidden"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-base font-black tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
+                              {v.code}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              {formatCurrency(v.amount)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                v.status === 'ativo'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : v.status === 'expirado'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {v.status === 'ativo' ? 'Ativo' : v.status === 'expirado' ? 'Expirado' : 'Desativado'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            Criado em: {formatDate(v.createdAt)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingVoucher(v);
+                              setEditVoucherCode(v.code);
+                              setEditVoucherAmount(String(v.amount));
+                              setEditVoucherMaxUses(String(v.maxUses));
+                              setEditVoucherStatus(v.status || 'ativo');
+                            }}
+                            className="text-muted-foreground hover:text-primary p-1.5 rounded-lg hover:bg-primary/10 transition-colors cursor-pointer"
+                            title="Editar voucher"
+                          >
+                            <Edit2 className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Eliminar o voucher ${v.code}?`)) {
+                                deleteVoucher(v.id);
+                              }
+                            }}
+                            className="text-muted-foreground hover:text-destructive p-1.5 rounded-lg hover:bg-destructive/10 transition-colors cursor-pointer"
+                            title="Eliminar voucher"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-border/60">
+                        <span className="text-muted-foreground">Utilizações:</span>
+                        <span className="font-bold text-foreground">
+                          {v.usedCount} / {v.maxUses} resgates
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2525,6 +2686,204 @@ export const AdminView: React.FC = () => {
                 className="flex-1 rounded-full bg-primary text-primary-foreground py-2 text-sm font-semibold hover:bg-primary/90 transition-colors"
               >
                 Confirmar Saldo
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Create New Voucher Modal */}
+      {isVoucherModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newVoucherCode.trim() || Number(newVoucherAmount) <= 0) {
+                toast.error('Código e valor devem ser válidos.');
+                return;
+              }
+              createVoucher(newVoucherCode, Number(newVoucherAmount), Number(newVoucherMaxUses) || 50);
+              setIsVoucherModalOpen(false);
+            }}
+            className="surface-card w-full max-w-sm rounded-3xl p-5 border border-border shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Gift className="size-5 text-primary" />
+                <h3 className="font-display font-semibold text-base text-foreground">
+                  Criar Novo Voucher
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVoucherModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground text-base p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Código do Cupão</label>
+                <input
+                  type="text"
+                  required
+                  value={newVoucherCode}
+                  onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
+                  placeholder="Ex: APPLE500"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-mono font-bold text-primary uppercase tracking-wider focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Valor do Bónus (MT)</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={newVoucherAmount}
+                  onChange={(e) => setNewVoucherAmount(e.target.value)}
+                  placeholder="100"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Limite de Utilizações (Resgates)</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={newVoucherMaxUses}
+                  onChange={(e) => setNewVoucherMaxUses(e.target.value)}
+                  placeholder="50"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsVoucherModalOpen(false)}
+                className="flex-1 rounded-xl border border-border py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-primary text-primary-foreground py-2 text-xs font-bold shadow hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                Criar Voucher
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Edit Voucher Modal */}
+      {editingVoucher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editVoucherCode.trim() || Number(editVoucherAmount) <= 0) {
+                toast.error('Código e valor devem ser válidos.');
+                return;
+              }
+              updateVoucher(editingVoucher.id, {
+                code: editVoucherCode.trim().toUpperCase(),
+                amount: Number(editVoucherAmount),
+                maxUses: Number(editVoucherMaxUses) || editingVoucher.maxUses,
+                status: editVoucherStatus,
+              });
+              setEditingVoucher(null);
+            }}
+            className="surface-card w-full max-w-sm rounded-3xl p-5 border border-border shadow-2xl space-y-3.5 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <div className="flex items-center gap-2">
+                <Edit2 className="size-4.5 text-primary" />
+                <h3 className="font-display font-semibold text-base text-foreground">
+                  Editar Voucher: {editingVoucher.code}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingVoucher(null)}
+                className="text-muted-foreground hover:text-foreground text-base p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Código do Voucher</label>
+                <input
+                  type="text"
+                  required
+                  value={editVoucherCode}
+                  onChange={(e) => setEditVoucherCode(e.target.value.toUpperCase())}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-mono font-bold text-primary uppercase tracking-wider focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Valor do Bónus (MT)</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={editVoucherAmount}
+                  onChange={(e) => setEditVoucherAmount(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-bold text-foreground focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Limite de Utilizações (Max Uses)</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={editVoucherMaxUses}
+                  onChange={(e) => setEditVoucherMaxUses(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                />
+                <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                  Já utilizado: {editingVoucher.usedCount} vezes
+                </span>
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block mb-1 font-semibold">Estado do Voucher</label>
+                <select
+                  value={editVoucherStatus}
+                  onChange={(e) => setEditVoucherStatus(e.target.value as any)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none cursor-pointer"
+                >
+                  <option value="ativo">Ativo (Permite reserva)</option>
+                  <option value="desativado">Desativado (Temporariamente suspenso)</option>
+                  <option value="expirado">Expirado (Limite atingido / Terminado)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingVoucher(null)}
+                className="flex-1 rounded-xl border border-border py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-primary text-primary-foreground py-2 text-xs font-bold shadow hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                Guardar Alterações
               </button>
             </div>
           </form>

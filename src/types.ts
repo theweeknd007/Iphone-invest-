@@ -130,7 +130,7 @@ export interface PlatformSettings {
   broadcastAlert: {
     active: boolean;
     message: string;
-    type: 'info' | 'warning' | 'success';
+    type: 'info' | 'warning' | 'success' | 'urgent';
     title: string;
   };
   mpesaOfficialNumber: string;
@@ -165,7 +165,17 @@ export interface GiftVoucher {
   maxUses: number;
   usedCount: number;
   createdAt: string;
-  status: 'ativo' | 'expirado';
+  status: 'ativo' | 'expirado' | 'desativado';
+}
+
+export interface PlatformNotification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'success' | 'info' | 'warning' | 'error';
+  read: boolean;
+  createdAt: string;
 }
 
 export interface BalanceAdjustmentLog {

@@ -31,32 +31,37 @@ export const TeamView: React.FC = () => {
   };
 
   // Real Multi-level calculations
-  const level1Users = profile
-    ? allUsers.filter((u) => u.referredBy && u.referredBy.toUpperCase() === profile.inviteCode.toUpperCase())
+  const userInviteCode = profile?.inviteCode?.toUpperCase() || '';
+  const level1Users = userInviteCode
+    ? allUsers.filter((u) => u.referredBy && u.referredBy.toUpperCase() === userInviteCode)
     : [];
 
-  const level1Codes = new Set(level1Users.map((u) => u.inviteCode.toUpperCase()));
-  const level2Users = profile
+  const level1Codes = new Set(
+    level1Users.map((u) => (u.inviteCode ? u.inviteCode.toUpperCase() : '')).filter(Boolean)
+  );
+  const level2Users = userInviteCode
     ? allUsers.filter((u) => u.referredBy && level1Codes.has(u.referredBy.toUpperCase()))
     : [];
 
-  const level2Codes = new Set(level2Users.map((u) => u.inviteCode.toUpperCase()));
-  const level3Users = profile
+  const level2Codes = new Set(
+    level2Users.map((u) => (u.inviteCode ? u.inviteCode.toUpperCase() : '')).filter(Boolean)
+  );
+  const level3Users = userInviteCode
     ? allUsers.filter((u) => u.referredBy && level2Codes.has(u.referredBy.toUpperCase()))
     : [];
 
   const totalInvitedCount = level1Users.length + level2Users.length + level3Users.length;
 
   const level1Earnings = level1Users.reduce(
-    (acc, u) => acc + Math.round((u.totalRecharged * settings.level1Commission) / 100),
+    (acc, u) => acc + Math.round(((u.totalRecharged || 0) * (settings.level1Commission || 29)) / 100),
     0
   );
   const level2Earnings = level2Users.reduce(
-    (acc, u) => acc + Math.round((u.totalRecharged * settings.level2Commission) / 100),
+    (acc, u) => acc + Math.round(((u.totalRecharged || 0) * (settings.level2Commission || 2)) / 100),
     0
   );
   const level3Earnings = level3Users.reduce(
-    (acc, u) => acc + Math.round((u.totalRecharged * settings.level3Commission) / 100),
+    (acc, u) => acc + Math.round(((u.totalRecharged || 0) * (settings.level3Commission || 1)) / 100),
     0
   );
 

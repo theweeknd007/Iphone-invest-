@@ -9,8 +9,8 @@ export const BottomNav: React.FC = () => {
   const { totalUnreadCount } = useChat();
 
   const navItems = [
-    { to: '/' as RoutePath, label: 'Produtos', icon: LayoutGrid, exact: true },
-    { to: '/meus-produtos' as RoutePath, label: 'Produtos', icon: Smartphone, exact: false },
+    { to: '/' as RoutePath, label: 'Início', icon: LayoutGrid, exact: true },
+    { to: '/meus-produtos' as RoutePath, label: 'Equipamentos', icon: Smartphone, exact: false },
     { to: '/chat' as RoutePath, label: 'Chat VIP', icon: MessageSquare, exact: false, badge: totalUnreadCount },
     { to: '/equipa' as RoutePath, label: 'Equipa', icon: Users, exact: false },
     { to: '/conta' as RoutePath, label: 'Conta', icon: User, exact: false },

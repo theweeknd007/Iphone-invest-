@@ -42,7 +42,11 @@ export const MyProductsView: React.FC = () => {
       return null;
     }
     const daysCompleted = purchase.daysCompleted ?? 0;
-    const purchaseTime = new Date(purchase.purchasedAt).getTime();
+    const dateStr = purchase.purchasedAt || purchase.createdAt;
+    const purchaseTime = dateStr ? new Date(dateStr).getTime() : now;
+    if (isNaN(purchaseTime)) {
+      return 'A processar crédito...';
+    }
     // Next payout happens at: purchaseTime + (daysCompleted + 1) * 24h
     const nextPayoutTarget = purchaseTime + (daysCompleted + 1) * 24 * 60 * 60 * 1000;
     const diff = nextPayoutTarget - now;

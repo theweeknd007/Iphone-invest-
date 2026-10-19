@@ -15,7 +15,7 @@ import {
   logSecurityEvent,
 } from './security';
 import { FinancialEngine, roundCurrency } from './ledger';
-import { StoredUser, UserSession, ChatMessage, Plan } from './types';
+import { StoredUser, UserSession, ChatMessage, Plan, Transaction, GiftVoucher } from './types';
 import { broadcastChatMessage, broadcastToConversation, getAutomatedFaqAnswer } from './chatServer';
 
 export const apiRouter = express.Router();
@@ -518,7 +518,7 @@ apiRouter.post('/finance/wallet', authenticateToken, async (req: AuthenticatedRe
   }
 });
 
-// Redeem Voucher
+// Redeem / Reserve Voucher (Requires Admin Approval before Balance is Credited)
 apiRouter.post('/finance/redeem-voucher', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { code } = req.body;
@@ -530,7 +530,7 @@ apiRouter.post('/finance/redeem-voucher', authenticateToken, async (req: Authent
       const voucher = db.vouchers.find((v) => v.code === cleanCode && v.status === 'ativo');
 
       if (!voucher) {
-        return res.status(400).json({ error: 'Código de cupão inválido ou expirado.' });
+        return res.status(400).json({ error: 'Código de cupão inválido, expirado ou desativado.' });
       }
 
       if (voucher.usedCount >= voucher.maxUses) {
@@ -542,19 +542,47 @@ apiRouter.post('/finance/redeem-voucher', authenticateToken, async (req: Authent
       const user = db.users.find((u) => u.id === req.user!.id);
       if (!user) return res.status(400).json({ error: 'Utilizador não encontrado.' });
 
-      voucher.usedCount += 1;
-      user.balance = roundCurrency(user.balance + voucher.amount);
+      const alreadyUsed = db.transactions.some(
+        (t) => t.userId === user.id && t.reference === `VOUCHER:${cleanCode}`
+      );
+      if (alreadyUsed) {
+        return res.status(400).json({ error: 'Já submeteu ou reservou este código anteriormente.' });
+      }
 
+      // DO NOT CREDIT BALANCE IMMEDIATELY! Admin approval required!
+      const pendingTx: Transaction = {
+        id: `vouch-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        userId: user.id,
+        userPhone: user.phone,
+        type: 'bonus',
+        amount: voucher.amount,
+        method: `Voucher Promocional (${cleanCode})`,
+        reference: `VOUCHER:${cleanCode}`,
+        status: 'pendente',
+        note: 'Reserva de código de bónus aguardando aprovação administrativa.',
+        createdAt: new Date().toISOString(),
+      };
+
+      db.transactions.unshift(pendingTx);
       saveDatabase(db);
+
+      logSecurityEvent({
+        eventType: 'BALANCE_ADJUSTED',
+        severity: 'INFO',
+        userId: user.id,
+        userPhone: user.phone,
+        details: `Utilizador reservou código de bónus ${cleanCode} (MT ${voucher.amount}). Aguarda aprovação do administrador.`,
+      });
+
       return res.json({
         success: true,
-        message: `Cupão resgatado com sucesso! Ganhou MT ${voucher.amount}.`,
+        pending: true,
+        message: `Código ${cleanCode} reservado com sucesso! Aguarde a aprovação do administrador para crédito do saldo de MT ${voucher.amount}.`,
         amount: voucher.amount,
-        balance: user.balance,
       });
     });
   } catch (err) {
-    return res.status(500).json({ error: 'Erro ao resgatar cupão.' });
+    return res.status(500).json({ error: 'Erro ao reservar cupão.' });
   }
 });
 
@@ -770,6 +798,177 @@ apiRouter.get('/admin/reconcile/:userId', authenticateToken, requireAdmin, (req:
 apiRouter.get('/admin/security-logs', authenticateToken, requireAdmin, (req: AuthenticatedRequest, res: Response) => {
   const db = getDatabase();
   return res.json({ logs: db.securityLogs.slice(-200) });
+});
+
+// Admin Save or Update Voucher (Allows admin to create and edit vouchers)
+apiRouter.post('/admin/vouchers/save', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id, code, amount, maxUses, status } = req.body;
+    if (!code || amount === undefined || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Código e valor do bónus são obrigatórios e devem ser válidos.' });
+    }
+
+    const cleanCode = String(code).trim().toUpperCase();
+    const db = getDatabase();
+
+    await withLock('vouchers-update', () => {
+      const existingIdx = id ? db.vouchers.findIndex((v) => v.id === id) : -1;
+      if (existingIdx >= 0) {
+        db.vouchers[existingIdx] = {
+          ...db.vouchers[existingIdx],
+          code: cleanCode,
+          amount: Number(amount),
+          maxUses: maxUses ? Number(maxUses) : db.vouchers[existingIdx].maxUses,
+          status: status || db.vouchers[existingIdx].status || 'ativo',
+        };
+      } else {
+        const codeExists = db.vouchers.some((v) => v.code === cleanCode);
+        if (codeExists) {
+          throw new Error('Já existe um voucher com este código.');
+        }
+        const newVoucher: GiftVoucher = {
+          id: id || `voucher-${Date.now()}`,
+          code: cleanCode,
+          amount: Number(amount),
+          maxUses: maxUses ? Number(maxUses) : 100,
+          usedCount: 0,
+          createdAt: new Date().toISOString(),
+          status: (status as any) || 'ativo',
+        };
+        db.vouchers.unshift(newVoucher);
+      }
+      saveDatabase(db);
+    });
+
+    logSecurityEvent({
+      eventType: 'SETTINGS_CHANGED',
+      severity: 'INFO',
+      operatorId: req.user!.id,
+      details: `Voucher ${cleanCode} (MT ${amount}) guardado/atualizado pelo administrador.`,
+    });
+
+    return res.json({ success: true, vouchers: db.vouchers });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Erro ao guardar voucher.' });
+  }
+});
+
+// Admin Delete Voucher
+apiRouter.delete('/admin/vouchers/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const db = getDatabase();
+    await withLock('vouchers-update', () => {
+      db.vouchers = db.vouchers.filter((v) => v.id !== id);
+      saveDatabase(db);
+    });
+    return res.json({ success: true, vouchers: db.vouchers });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao eliminar voucher.' });
+  }
+});
+
+// Admin Approve Voucher Claim (Credits user balance safely)
+apiRouter.post('/admin/voucher-claims/approve', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { txId } = req.body;
+    if (!txId) return res.status(400).json({ error: 'ID de transação obrigatório.' });
+
+    const db = getDatabase();
+    const tx = db.transactions.find((t) => t.id === txId && t.type === 'bonus');
+    if (!tx) return res.status(404).json({ error: 'Reserva de bónus não encontrada.' });
+    if (tx.status !== 'pendente') {
+      return res.status(400).json({ error: 'Esta reserva já foi processada anteriormente.' });
+    }
+
+    const user = db.users.find((u) => u.id === tx.userId);
+    if (!user) return res.status(404).json({ error: 'Utilizador não encontrado.' });
+
+    await withLock(`user-balance-${user.id}`, () => {
+      // Safely update user balance and earnings
+      user.balance = roundCurrency((user.balance || 0) + tx.amount);
+      user.totalEarnings = roundCurrency((user.totalEarnings || 0) + tx.amount);
+      tx.status = 'concluido';
+      tx.note = `Bónus de voucher aprovado pelo administrador ${req.user!.name || req.user!.phone}.`;
+
+      // Update voucher used count
+      const cleanCode = tx.reference ? tx.reference.replace('VOUCHER:', '') : '';
+      const voucher = db.vouchers.find((v) => v.code === cleanCode);
+      if (voucher) {
+        voucher.usedCount = (voucher.usedCount || 0) + 1;
+        if (voucher.usedCount >= voucher.maxUses) {
+          voucher.status = 'expirado';
+        }
+      }
+
+      // Add audit adjustment log
+      db.adjustmentLogs.unshift({
+        id: `adj-${Date.now()}`,
+        adminId: req.user!.id,
+        adminName: req.user!.name || 'Administrador',
+        userId: user.id,
+        userPhone: user.phone,
+        targetUserId: user.id,
+        targetUserPhone: user.phone,
+        amount: tx.amount,
+        type: 'bonus',
+        reason: `Aprovação de Voucher Promocional ${tx.reference || ''}`,
+        createdAt: new Date().toISOString(),
+      });
+
+      logSecurityEvent({
+        eventType: 'BALANCE_ADJUSTED',
+        severity: 'INFO',
+        userId: user.id,
+        userPhone: user.phone,
+        operatorId: req.user!.id,
+        details: `Administrador aprovou bónus de voucher ${tx.reference} de MT ${tx.amount}. Novo saldo: MT ${user.balance}.`,
+      });
+
+      saveDatabase(db);
+    });
+
+    return res.json({
+      success: true,
+      message: `Bónus de MT ${tx.amount} aprovado com sucesso!`,
+      newBalance: user.balance,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao aprovar bónus de voucher.' });
+  }
+});
+
+// Admin Reject Voucher Claim
+apiRouter.post('/admin/voucher-claims/reject', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { txId, reason } = req.body;
+    if (!txId) return res.status(400).json({ error: 'ID de transação obrigatório.' });
+
+    const db = getDatabase();
+    const tx = db.transactions.find((t) => t.id === txId && t.type === 'bonus');
+    if (!tx) return res.status(404).json({ error: 'Reserva de bónus não encontrada.' });
+    if (tx.status !== 'pendente') {
+      return res.status(400).json({ error: 'Esta reserva já foi processada anteriormente.' });
+    }
+
+    tx.status = 'falhado';
+    tx.note = reason || 'Reserva de bónus rejeitada pela administração.';
+
+    logSecurityEvent({
+      eventType: 'BALANCE_ADJUSTED',
+      severity: 'WARNING',
+      userId: tx.userId,
+      userPhone: tx.userPhone,
+      operatorId: req.user!.id,
+      details: `Administrador rejeitou reserva de voucher ${tx.reference}. Motivo: ${tx.note}`,
+    });
+
+    saveDatabase(db);
+
+    return res.json({ success: true, message: 'Reserva de bónus rejeitada.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro ao rejeitar bónus de voucher.' });
+  }
 });
 
 // ==========================================

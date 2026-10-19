@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { UserProfile, Purchase, Transaction, Plan, RoutePath, PlatformSettings, AdminStats, GiftVoucher, BalanceAdjustmentLog } from '../types';
+import { UserProfile, Purchase, Transaction, Plan, RoutePath, PlatformSettings, AdminStats, GiftVoucher, BalanceAdjustmentLog, PlatformNotification } from '../types';
 import { PLANS, formatCurrency } from '../data/plans';
 import { toast } from 'sonner';
 import { apiRequest, setStoredToken, getStoredToken } from '../api/client';
@@ -41,10 +41,15 @@ interface SessionContextType {
   collectYields: () => { collected: number };
   advanceCycle24h: (purchaseId?: string) => void;
   checkAndProcess24hYields: () => number;
+
   vouchers: GiftVoucher[];
+  notifications: PlatformNotification[];
+  markNotificationAsRead: (id?: string) => void;
   createVoucher: (code: string, amount: number, maxUses?: number) => void;
   deleteVoucher: (id: string) => void;
   redeemVoucher: (code: string) => { success: boolean; message: string; amount?: number };
+  approveVoucherClaim: (txId: string) => void;
+  rejectVoucherClaim: (txId: string, reason?: string) => void;
   creditUserBonus: (userId: string, amount: number, frozen?: boolean, reason?: string) => void;
   unfreezeUserBonus: (userId: string, amount?: number) => void;
   massBonusCredit: (amount: number, frozen?: boolean, reason?: string) => void;
@@ -77,6 +82,7 @@ const STORAGE_KEY_USERS = 'apple_invest_real_users';
 const STORAGE_KEY_SETTINGS = 'apple_invest_real_settings_v2';
 const STORAGE_KEY_VOUCHERS = 'apple_invest_real_vouchers_v1';
 const STORAGE_KEY_LOGS = 'apple_invest_real_adjustment_logs_v1';
+const STORAGE_KEY_NOTIFICATIONS = 'apple_invest_real_notifications_v1';
 
 const defaultSettings: PlatformSettings = {
   platformName: 'APPLE INVEST',
@@ -216,6 +222,39 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       { id: 'v-2', code: 'BONUSVIP', amount: 100, maxUses: 50, usedCount: 1, createdAt: new Date().toISOString(), status: 'ativo' },
     ];
   });
+
+  const [notifications, setNotifications] = useState<PlatformNotification[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return [];
+      }
+    }
+    return [
+      {
+        id: 'notif-1',
+        userId: 'all',
+        title: 'Bem-vindo à APPLE INVEST',
+        message: 'Explore os nossos planos de investimento em iPhones com rendimentos diários de 5%.',
+        type: 'info',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  });
+
+  const markNotificationAsRead = (id?: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => {
+        if (!id || n.id === id) {
+          return { ...n, read: true };
+        }
+        return n;
+      })
+    );
+  };
 
   // Balance Adjustment Audit Logs
   const [adjustmentLogs, setAdjustmentLogs] = useState<BalanceAdjustmentLog[]>(() => {
@@ -374,6 +413,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(adjustmentLogs));
   }, [adjustmentLogs]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
+  }, [notifications]);
 
   const navigateTo = (route: RoutePath) => {
     setCurrentRoute(route);
@@ -987,8 +1030,9 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return { ...p, status: 'concluido' as const };
       }
 
-      const purchaseTime = new Date(p.purchasedAt).getTime();
-      const elapsedMs = Math.max(0, now - purchaseTime);
+      const purchaseTime = new Date(p.purchasedAt || p.createdAt || now).getTime();
+      const validPurchaseTime = isNaN(purchaseTime) ? now : purchaseTime;
+      const elapsedMs = Math.max(0, now - validPurchaseTime);
       const totalPeriods24h = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
       const eligiblePeriods = Math.min(totalPeriods24h, p.days);
       const periodsToCredit = eligiblePeriods - currentCompleted;
@@ -1100,7 +1144,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         totalEarned: (p.totalEarned ?? 0) + yieldAmount,
         lastPayoutAt: new Date().toISOString(),
         // Advance purchasedAt timestamp backwards by 24h so time difference calculations stay aligned
-        purchasedAt: new Date(new Date(p.purchasedAt).getTime() - 24 * 60 * 60 * 1000).toISOString(),
+        purchasedAt: new Date(new Date(p.purchasedAt || p.createdAt || Date.now()).getTime() - 24 * 60 * 60 * 1000).toISOString(),
         status: isFinished ? ('concluido' as const) : ('ativo' as const),
       };
     });
@@ -1575,22 +1619,66 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       status: 'ativo',
     };
     setVouchers((prev) => [newV, ...prev]);
+
+    apiRequest('/admin/vouchers/save', {
+      method: 'POST',
+      body: JSON.stringify(newV),
+    }).catch((err) => {
+      console.warn('[Voucher Create] backend sync error:', err);
+    });
+
     toast.success(`Voucher ${cleanCode} (MT ${amount.toLocaleString('pt-PT')}) criado com sucesso!`);
+  };
+
+  const updateVoucher = (id: string, updated: Partial<GiftVoucher>) => {
+    setVouchers((prev) =>
+      prev.map((v) => {
+        if (v.id === id) {
+          const cleanCode = updated.code ? updated.code.trim().toUpperCase() : v.code;
+          const merged: GiftVoucher = {
+            ...v,
+            ...updated,
+            code: cleanCode,
+            amount: updated.amount !== undefined ? Number(updated.amount) : v.amount,
+            maxUses: updated.maxUses !== undefined ? Number(updated.maxUses) : v.maxUses,
+            status: updated.status || v.status,
+          };
+          return merged;
+        }
+        return v;
+      })
+    );
+
+    apiRequest('/admin/vouchers/save', {
+      method: 'POST',
+      body: JSON.stringify({ id, ...updated }),
+    }).catch((err) => {
+      console.warn('[Voucher Update] backend sync error:', err);
+    });
+
+    toast.success('Voucher atualizado com sucesso!');
   };
 
   const deleteVoucher = (id: string) => {
     setVouchers((prev) => prev.filter((v) => v.id !== id));
+
+    apiRequest(`/admin/vouchers/${id}`, {
+      method: 'DELETE',
+    }).catch((err) => {
+      console.warn('[Voucher Delete] backend sync error:', err);
+    });
+
     toast.success('Voucher removido.');
   };
 
   const redeemVoucher = (code: string) => {
     if (!profile) {
-      return { success: false, message: 'Inicie sessão para resgatar o voucher.' };
+      return { success: false, message: 'Inicie sessão para reservar o código de bónus.' };
     }
     const cleanCode = code.trim().toUpperCase();
     const v = vouchers.find((item) => item.code === cleanCode && item.status === 'ativo');
     if (!v) {
-      return { success: false, message: 'Código de voucher inválido ou expirado.' };
+      return { success: false, message: 'Código de voucher inválido, expirado ou inexistente.' };
     }
     if (v.usedCount >= v.maxUses) {
       return { success: false, message: 'Este voucher atingiu o limite máximo de utilizações.' };
@@ -1599,17 +1687,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       (t) => t.userId === profile.id && t.reference === `VOUCHER:${cleanCode}`
     );
     if (alreadyUsed) {
-      return { success: false, message: 'Já resgatou este código anteriormente.' };
+      return { success: false, message: 'Já submeteu ou reservou este código anteriormente.' };
     }
 
-    setProfile((prev) => (prev ? { ...prev, balance: prev.balance + v.amount } : null));
-    setAllUsers((prev) =>
-      prev.map((u) => (u.id === profile.id ? { ...u, balance: u.balance + v.amount } : u))
-    );
-    setVouchers((prev) =>
-      prev.map((item) => (item.id === v.id ? { ...item, usedCount: item.usedCount + 1 } : item))
-    );
-
+    // DO NOT CREDIT BALANCE IMMEDIATELY! Admin approval required!
     const tx: Transaction = {
       id: 'vouch-' + Date.now(),
       userId: profile.id,
@@ -1618,16 +1699,157 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       amount: v.amount,
       method: `Voucher Promocional (${cleanCode})`,
       reference: `VOUCHER:${cleanCode}`,
-      status: 'concluido',
+      status: 'pendente',
+      note: 'Aguardando aprovação da administração para crédito de saldo.',
       createdAt: new Date().toISOString(),
     };
     setTransactions((prev) => [tx, ...prev]);
 
+    apiRequest<{ success: boolean; message?: string }>('/finance/redeem-voucher', {
+      method: 'POST',
+      body: JSON.stringify({ code: cleanCode }),
+    }).catch((err) => {
+      console.warn('[Voucher] Local sync pending API:', err);
+    });
+
     return {
       success: true,
-      message: `Voucher ${cleanCode} ativado! MT ${v.amount.toLocaleString('pt-PT')} adicionados ao seu saldo disponível.`,
+      message: `Código ${cleanCode} reservado com sucesso! Aguarde a aprovação do administrador para crédito do saldo de MT ${v.amount.toLocaleString('pt-PT')}.`,
       amount: v.amount,
     };
+  };
+
+  const approveVoucherClaim = async (txId: string) => {
+    const tx = transactions.find((t) => t.id === txId && t.type === 'bonus');
+    if (!tx || tx.status !== 'pendente') {
+      toast.error('Reserva de voucher não encontrada ou já processada.');
+      return;
+    }
+
+    const cleanCode = tx.reference ? tx.reference.replace('VOUCHER:', '') : '';
+    const v = vouchers.find((item) => item.code === cleanCode);
+
+    try {
+      await apiRequest('/admin/voucher-claims/approve', {
+        method: 'POST',
+        body: JSON.stringify({ txId }),
+      });
+    } catch (e) {
+      console.warn('[Voucher Approval] backend fallback:', e);
+    }
+
+    // Safely credit target user's balance
+    setAllUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === tx.userId) {
+          return {
+            ...u,
+            balance: (u.balance || 0) + tx.amount,
+            totalEarnings: (u.totalEarnings || 0) + tx.amount,
+          };
+        }
+        return u;
+      })
+    );
+
+    setProfile((prev) => {
+      if (prev && prev.id === tx.userId) {
+        return {
+          ...prev,
+          balance: (prev.balance || 0) + tx.amount,
+          totalEarnings: (prev.totalEarnings || 0) + tx.amount,
+        };
+      }
+      return prev;
+    });
+
+    setTransactions((prev) =>
+      prev.map((t) =>
+        t.id === txId
+          ? { ...t, status: 'concluido', note: 'Aprovado pelo administrador.' }
+          : t
+      )
+    );
+
+    if (v) {
+      setVouchers((prev) =>
+        prev.map((item) => (item.id === v.id ? { ...item, usedCount: item.usedCount + 1 } : item))
+      );
+    }
+
+    const adjLog: BalanceAdjustmentLog = {
+      id: 'adj-' + Date.now(),
+      adminId: profile?.id || 'admin',
+      adminName: profile?.name || 'Administrador',
+      userId: tx.userId,
+      userPhone: tx.userPhone || '',
+      targetUserId: tx.userId,
+      targetUserPhone: tx.userPhone || '',
+      amount: tx.amount,
+      type: 'bonus',
+      reason: `Aprovação de Voucher Promocional ${tx.reference || ''}`,
+      createdAt: new Date().toISOString(),
+    };
+    setAdjustmentLogs((prev) => [adjLog, ...prev]);
+
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        userId: tx.userId,
+        title: 'Bónus / Voucher Aprovado!',
+        message: `O seu pedido de bónus no valor de MT ${tx.amount.toLocaleString('pt-PT')} foi aprovado pelo administrador e já se encontra no seu saldo.`,
+        type: 'success',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+
+    toast.success(`Bónus de MT ${tx.amount.toLocaleString('pt-PT')} aprovado com sucesso! Saldo creditado.`);
+  };
+
+  const rejectVoucherClaim = async (txId: string, reason?: string) => {
+    const tx = transactions.find((t) => t.id === txId && t.type === 'bonus');
+    if (!tx || tx.status !== 'pendente') {
+      toast.error('Reserva de voucher não encontrada ou já processada.');
+      return;
+    }
+
+    try {
+      await apiRequest('/admin/voucher-claims/reject', {
+        method: 'POST',
+        body: JSON.stringify({ txId, reason }),
+      });
+    } catch (e) {
+      console.warn('[Voucher Reject] backend fallback:', e);
+    }
+
+    setTransactions((prev) =>
+      prev.map((t) =>
+        t.id === txId
+          ? {
+              ...t,
+              status: 'falhado',
+              note: reason || 'Reserva de bónus rejeitada pelo administrador.',
+            }
+          : t
+      )
+    );
+
+    setNotifications((prev) => [
+      {
+        id: 'notif-' + Date.now(),
+        userId: tx.userId,
+        title: 'Bónus / Voucher Rejeitado',
+        message: reason ? `O seu pedido de bónus foi rejeitado: ${reason}` : 'O seu pedido de bónus foi rejeitado pelo administrador.',
+        type: 'error',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+
+    toast.info('Reserva de voucher rejeitada. Nenhum saldo foi adicionado.');
   };
 
   const creditUserBonus = (userId: string, amount: number, frozen = false, reason = 'Bónus Administrativo') => {
@@ -1866,9 +2088,14 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         advanceCycle24h,
         checkAndProcess24hYields,
         vouchers,
+        notifications,
+        markNotificationAsRead,
         createVoucher,
+        updateVoucher,
         deleteVoucher,
         redeemVoucher,
+        approveVoucherClaim,
+        rejectVoucherClaim,
         creditUserBonus,
         unfreezeUserBonus,
         massBonusCredit,

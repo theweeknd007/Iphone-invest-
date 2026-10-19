@@ -130,12 +130,19 @@ export function formatCurrency(amount: number): string {
   return `MT ${new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 }).format(amount)}`;
 }
 
-export function formatDate(dateString: string | number | Date): string {
-  return new Intl.DateTimeFormat('pt-PT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(dateString));
+export function formatDate(dateString?: string | number | Date | null): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d);
+  } catch {
+    return '—';
+  }
 }

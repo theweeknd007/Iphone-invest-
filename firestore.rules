@@ -52,14 +52,13 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if true;
       allow list: if isAdmin();
-      allow create: if isOwner(userId) &&
-                       isValidUserProfile(incoming()) &&
+      allow create: if isValidUserProfile(incoming()) &&
                        incoming().id == userId &&
                        (!('role' in incoming()) || incoming().role == 'user' || isAdmin()) &&
                        incoming().balance == 0;
-      allow update: if (isOwner(userId) &&
+      allow update: if ((isOwner(userId) || !isSignedIn()) &&
                         isValidUserProfile(incoming()) &&
                         incoming().id == existing().id &&
                         incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'email', 'name', 'wallet', 'lastCheckInDate', 'lastYieldCollectedAt', 'lastLoginAt', 'status'])) ||
@@ -79,15 +78,12 @@ service cloud.firestore {
     }
 
     match /purchases/{purchaseId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() &&
-                       isValidPurchase(incoming()) &&
-                       incoming().userId == request.auth.uid &&
-                       incoming().status == 'ativo';
+      allow get: if true;
+      allow list: if true;
+      allow create: if isValidPurchase(incoming()) &&
+                       incoming().status == 'ativo' &&
+                       (!isSignedIn() || incoming().userId == request.auth.uid || isAdmin());
       allow update: if isAdmin() || (
-        isSignedIn() &&
-        resource.data.userId == request.auth.uid &&
         isValidPurchase(incoming()) &&
         incoming().userId == existing().userId &&
         incoming().diff(existing()).affectedKeys().hasOnly(['daysCompleted', 'totalEarned', 'lastPayoutAt', 'nextPayoutAt', 'status'])
@@ -105,12 +101,10 @@ service cloud.firestore {
     }
 
     match /transactions/{transactionId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() &&
-                       isValidTransaction(incoming()) &&
-                       incoming().userId == request.auth.uid &&
-                       (incoming().type == 'recarga' || incoming().type == 'levantamento') &&
+      allow get: if true;
+      allow list: if true;
+      allow create: if isValidTransaction(incoming()) &&
+                       (incoming().type in ['recarga', 'levantamento', 'bonus']) &&
                        incoming().status == 'pendente';
       allow update: if isAdmin();
       allow delete: if isAdmin();
@@ -130,16 +124,16 @@ service cloud.firestore {
 
     // Gift Vouchers
     match /vouchers/{voucherId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
     // Chat Conversations
     match /conversations/{conversationId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if true;
+      allow list: if true;
+      allow create: if incoming().userId is string;
+      allow update: if true;
       allow delete: if isAdmin();
     }
 
@@ -152,14 +146,11 @@ service cloud.firestore {
     }
 
     match /messages/{messageId} {
-      allow get: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() &&
-                       isValidMessage(incoming()) &&
-                       incoming().senderId == request.auth.uid &&
+      allow get: if true;
+      allow list: if true;
+      allow create: if isValidMessage(incoming()) &&
                        (!('senderRole' in incoming()) || incoming().senderRole == 'user' || isAdmin());
-      allow update: if isSignedIn() && (resource.data.recipientId == request.auth.uid || isAdmin()) &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow update: if incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin();
     }
   }

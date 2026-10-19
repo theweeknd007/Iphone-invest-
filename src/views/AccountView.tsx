@@ -139,7 +139,7 @@ export const AccountView: React.FC = () => {
           <MenuItem icon={FileText} label="Detalhes da conta" to="/conta/detalhes" />
           <MenuItem
             icon={Gift}
-            label="Resgatar Código / Voucher de Bónus"
+            label="Reservar Código de Bónus"
             onClick={() => setIsVoucherModalOpen(true)}
           />
           <MenuItem icon={History} label="Histórico de recargas" to="/conta/recargas" />
@@ -184,10 +184,20 @@ export const AccountView: React.FC = () => {
                 <Gift className="size-7" />
               </div>
               <h3 className="font-display text-lg font-bold text-foreground">
-                Resgatar Código de Bónus
+                Reservar Código de Bónus
               </h3>
               <p className="text-xs text-muted-foreground">
                 Introduza o código do cupão promocional fornecido pela administração da APPLE INVEST.
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-3 text-left space-y-1">
+              <div className="font-semibold text-xs text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                <ShieldCheck className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Aprovação Obrigatória da Administração</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Por motivos de segurança e controle de saldos, a reserva de bónus é enviada para análise. O saldo será creditado assim que o administrador aprovar o pedido.
               </p>
             </div>
 
@@ -197,7 +207,7 @@ export const AccountView: React.FC = () => {
                 if (!voucherInput.trim()) return;
                 const res = redeemVoucher(voucherInput.trim());
                 if (res.success) {
-                  toast.success(res.message);
+                  toast.success(res.message, { duration: 5000 });
                   setIsVoucherModalOpen(false);
                   setVoucherInput('');
                 } else {
@@ -229,7 +239,7 @@ export const AccountView: React.FC = () => {
                   type="submit"
                   className="w-full rounded-xl bg-primary text-primary-foreground py-2.5 text-sm font-bold shadow hover:bg-primary/90 transition-colors cursor-pointer"
                 >
-                  Resgatar
+                  Reservar Bónus
                 </button>
               </div>
             </form>
