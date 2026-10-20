@@ -4,7 +4,7 @@ import { DatabaseSchema, StoredUser } from './types';
 import { PLANS } from '../data/plans';
 import { PlatformSettings } from '../types';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = process.env.APPLE_INVEST_DATA_DIR || path.resolve(process.cwd(), 'artifacts/api-server/data');
 const DB_FILE = path.join(DATA_DIR, 'app-db.json');
 
 const defaultSettings: PlatformSettings = {

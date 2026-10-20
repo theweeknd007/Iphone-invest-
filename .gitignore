@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.migration-backup/
+artifacts/api-server/data/
+artifacts/api-server/public/uploads/

@@ -1234,7 +1234,7 @@ apiRouter.post('/chat/upload', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Ficheiro não fornecido.' });
     }
 
-    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+    const uploadsDir = path.resolve(process.cwd(), 'artifacts/api-server/public/uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
@@ -1283,7 +1283,7 @@ apiRouter.post('/admin/upload-media', authenticateToken, requireAdmin, (req: Aut
       return res.status(400).json({ error: 'Nenhum ficheiro recebido.' });
     }
 
-    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+    const uploadsDir = path.resolve(process.cwd(), 'artifacts/api-server/public/uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }

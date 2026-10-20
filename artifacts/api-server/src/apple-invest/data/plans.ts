@@ -1,0 +1,148 @@
+import { Plan, TeamLevel } from '../types';
+
+export const PLANS: Plan[] = [
+  {
+    id: 'iphone-x',
+    name: 'iPhone X',
+    model: '64GB / 256GB • Super Retina OLED',
+    price: 400,
+    dailyYield: Math.round((400 * 0.05) * 10) / 10, // 5% daily profit
+    days: 6,
+    tone: 'from-slate-400/20 to-slate-200/5',
+    image: 'https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A11 Bionic',
+    specs: 'Ecrã 5.8" • Face ID • Câmera Dupla 12MP',
+  },
+  {
+    id: 'iphone-11',
+    name: 'iPhone 11',
+    model: '128GB • Liquid Retina HD',
+    price: 800,
+    dailyYield: 40,
+    days: 6,
+    tone: 'from-purple-400/20 to-purple-200/5',
+    image: 'https://images.unsplash.com/photo-1574755393849-623942496936?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A13 Bionic',
+    specs: 'Ecrã 6.1" • Modo Noite • Ultra Grande-Angular',
+  },
+  {
+    id: 'iphone-12',
+    name: 'iPhone 12',
+    model: '128GB • Super Retina XDR 5G',
+    price: 2000,
+    dailyYield: 100,
+    days: 6,
+    tone: 'from-blue-400/20 to-blue-200/5',
+    image: 'https://images.unsplash.com/photo-1605236453806-6ff36851218e?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A14 Bionic',
+    specs: 'Ceramic Shield • MagSafe • Gravação Dolby Vision',
+  },
+  {
+    id: 'iphone-13',
+    name: 'iPhone 13',
+    model: '256GB • Modo Cinema HDR',
+    price: 5000,
+    dailyYield: 250,
+    days: 6,
+    tone: 'from-pink-400/20 to-pink-200/5',
+    image: 'https://images.unsplash.com/photo-1632661674596-df8be070a5c5?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A15 Bionic',
+    specs: 'Ecrã Super Retina 6.1" • Estabilização Sensor-Shift',
+  },
+  {
+    id: 'iphone-14',
+    name: 'iPhone 14',
+    model: '256GB • Dynamic Island Pro',
+    price: 10000,
+    dailyYield: 500,
+    days: 7,
+    tone: 'from-indigo-400/20 to-indigo-200/5',
+    image: 'https://images.unsplash.com/photo-1663499482523-1c0c1bae4ce1?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A16 Bionic',
+    specs: 'Câmera Principal 48MP • Detecção de Acidentes',
+  },
+  {
+    id: 'iphone-15',
+    name: 'iPhone 15',
+    model: '512GB • Estrutura em Titânio Aeroespacial',
+    price: 25000,
+    dailyYield: 1250,
+    days: 7,
+    tone: 'from-amber-400/20 to-amber-200/5',
+    image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A17 Pro (3nm)',
+    specs: 'USB-C 10Gbps • Botão de Ação • Zoom Óptico 5x',
+  },
+  {
+    id: 'iphone-16',
+    name: 'iPhone 16',
+    model: '1TB • Apple Intelligence Ready',
+    price: 50000,
+    dailyYield: 2500,
+    days: 7,
+    tone: 'from-teal-400/20 to-teal-200/5',
+    image: 'https://images.unsplash.com/photo-1726056651478-f7396603d7df?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A18 Pro',
+    specs: 'Controlo de Câmera Tátil • IA Generativa Nativa',
+  },
+  {
+    id: 'iphone-17',
+    name: 'iPhone 17',
+    model: '1TB • Slim Quantum Titan Pro',
+    price: 100000,
+    dailyYield: 5000,
+    days: 7,
+    tone: 'from-emerald-400/20 to-emerald-200/5',
+    image: 'https://images.unsplash.com/photo-1616348436168-de43ad0db179?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'A19 Bionic (2nm)',
+    specs: 'Ecrã Anti-reflexo 3000 nits • Face ID Sob Ecrã',
+  },
+  {
+    id: 'iphone-18',
+    name: 'iPhone 18',
+    model: '2TB • Holographic Ultra Titanium',
+    price: 200000,
+    dailyYield: 10000,
+    days: 7,
+    tone: 'from-violet-500/20 to-violet-300/5',
+    image: 'https://images.unsplash.com/photo-1580910051074-3eb694886505?w=800&auto=format&fit=crop&q=80',
+    badge: '5% Diário',
+    chip: 'Quantum A20 Neuro',
+    specs: 'Bateria de Grafeno 72h • Projeção Holográfica 8K',
+  },
+];
+
+export const INITIAL_TEAM_LEVELS: TeamLevel[] = [
+  { level: 1, name: 'Nível 1', commissionPercent: 29, rate: 29, members: 0, earnings: 0 },
+  { level: 2, name: 'Nível 2', commissionPercent: 2, rate: 2, members: 0, earnings: 0 },
+  { level: 3, name: 'Nível 3', commissionPercent: 1, rate: 1, members: 0, earnings: 0 },
+];
+
+export function formatCurrency(amount: number): string {
+  return `MT ${new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 0 }).format(amount)}`;
+}
+
+export function formatDate(dateString?: string | number | Date | null): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(d);
+  } catch {
+    return '—';
+  }
+}

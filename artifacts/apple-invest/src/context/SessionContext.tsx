@@ -403,7 +403,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [profile?.id]);
 
-  const [currentRoute, setCurrentRoute] = useState<RoutePath>('/');
+  const [currentRoute, setCurrentRoute] = useState<RoutePath>(() => {
+    const path = window.location.pathname;
+    return (path || '/') as RoutePath;
+  });
 
   const [isAdminAuth, setIsAdminAuth] = useState(() => {
     return sessionStorage.getItem('isAdminAuth') === 'true';
@@ -520,9 +523,18 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [notifications]);
 
   const navigateTo = (route: RoutePath) => {
+    if (window.location.pathname !== route) {
+      window.history.pushState({}, '', route);
+    }
     setCurrentRoute(route);
     window.scrollTo(0, 0);
   };
+
+  useEffect(() => {
+    const onPopState = () => setCurrentRoute((window.location.pathname || '/') as RoutePath);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   // Enhanced registration function with server PBKDF2 crypto and session token
   const signUp = (phone: string, password: string, inviteCode?: string, email?: string, name?: string): boolean => {
